@@ -26,7 +26,7 @@ class TestDocumentProcessing(unittest.TestCase):
         # 初始化文档加载器和分割器
         cls.loader = DocumentLoader()
         cls.ollama_host = "http://127.0.0.1:11434"
-        cls.ollama_model = "bge-m3:latest"
+        cls.OLLAMA_EMBEDDING_MODEL = "bge-m3:latest"
         
         # 检查Ollama服务状态
         cls.ollama_available = is_ollama_running(cls.ollama_host)

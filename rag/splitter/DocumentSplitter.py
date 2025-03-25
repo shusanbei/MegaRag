@@ -12,19 +12,19 @@ env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__
 environ.Env.read_env(env_file)
 
 class DocumentSplitter:
-    def __init__(self, ollama_host=env('OLLAMA_HOST'), ollama_model=env('OLLAMA_MODEL')):
+    def __init__(self, ollama_host=env('OLLAMA_HOST'), OLLAMA_EMBEDDING_MODEL=env('OLLAMA_EMBEDDING_MODEL')):
         """初始化DocumentSplitter
 
         Args:
             ollama_host (str): Ollama服务地址        ***默认为本地的ollama的bge-m3:latest如果使用需要传入**
-            ollama_model (str): Ollama嵌入模型名称
+            OLLAMA_EMBEDDING_MODEL (str): Ollama嵌入模型名称
         """
         print(ollama_host)
-        print(ollama_model)
+        print(OLLAMA_EMBEDDING_MODEL)
 
         self.embedding = OllamaEmbeddings(
             base_url=ollama_host,
-            model=ollama_model
+            model=OLLAMA_EMBEDDING_MODEL
         )
 
     def _print_splits(self, splits):
