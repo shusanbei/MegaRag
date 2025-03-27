@@ -1,38 +1,21 @@
+from pymilvus import MilvusClient, DataType
 import os
-import re
-import json
-import logging
-import uuid
-from datetime import datetime
-from typing import Any, Optional
-from pymilvus import MilvusClient, DataType, __version__, FunctionType, Function
-from pypinyin import lazy_pinyin
 import environ
+from datetime import datetime
+from pypinyin import lazy_pinyin
+import uuid
 import numpy as np
 from langchain_core.documents import Document
-
-# 初始化环境变量
-env = environ.Env()
-env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), '.env')
-environ.Env.read_env(env_file)
+from typing import Any, Optional
+from pymilvus import __version__
 
 class MilvusDB:
-    def __init__(self, uploader="system", uri=env.str('MILVUS_URI')):
+    def __init__(self, uploader="system"):
         # 设置环境变量文件路径
-        self.env = env
+        self.env = environ.Env()
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+        environ.Env.read_env(env_file)
         self.uploader = uploader
-        # 初始化 Milvus 客户端
-        self.client = MilvusClient(uri=uri)
-        self.collection_name = None
-        # 配置日志
-        self.logger = logging.getLogger(__name__)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
 
     # 辅助方法
     def _process_collection_name(self, filename):
@@ -94,10 +77,6 @@ class MilvusDB:
     
         return docs
 
-    def _check_collection_exists(self, collection_name: str) -> bool:
-        """检查集合是否存在"""
-        return collection_name in self.client.list_collections()
-
     # 集合管理方法
     def create_collection(self, embeddings: list, metadatas: Optional[list[dict]] = None, index_params: Optional[dict] = None):
         """在Milvus中创建具有指定架构和索引参数的新集合。
@@ -120,21 +99,11 @@ class MilvusDB:
             # 添加字段
             schema.add_field(field_name="id", datatype=DataType.VARCHAR, max_length=36, is_primary=True)
             schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=dim)
-            schema.add_field(field_name="sparse_vector", datatype=DataType.SPARSE_FLOAT_VECTOR)
-            schema.add_field(field_name="text", datatype=DataType.VARCHAR, max_length=65535, enable_analyzer=True)
+            schema.add_field(field_name="text", datatype=DataType.VARCHAR, max_length=65535)
             schema.add_field(field_name="metadata", datatype=DataType.JSON)
             
-            bm25_function = Function(
-                name="text_bm25_emb",           
-                input_field_names=["text"],     
-                output_field_names=["sparse_vector"],
-                function_type=FunctionType.BM25,
-            )
-
-            schema.add_function(bm25_function)
-
             # 创建集合
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             client.create_collection(
                 collection_name=self.collection_name,
                 schema=schema,
@@ -149,19 +118,6 @@ class MilvusDB:
                 metric_type="L2",
                 params={"nlist": 1024}
             )
-            # 为sparse_vector字段创建索引
-            index_params_obj.add_index(
-                field_name="sparse_vector",
-                index_name="sparse_inverted_index",
-                index_type="SPARSE_INVERTED_INDEX",
-                metric_type="BM25",
-                params={
-                    "inverted_index_algo": "DAAT_MAXSCORE",
-                    "bm25_k1": 1.2,
-                    "bm25_b": 0.75
-                }, 
-            )
-
             if index_params:
                 # 如果提供了自定义索引参数，则使用自定义参数
                 index_params_obj = MilvusClient.prepare_index_params()
@@ -233,7 +189,7 @@ class MilvusDB:
                 data.append(record)
             
             # 连接 Milvus
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 批量插入数据
             client.insert(collection_name=collection_name, data=data)
@@ -263,7 +219,7 @@ class MilvusDB:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 获取原有集合的metadata
             original_upload_date = None
@@ -340,7 +296,7 @@ class MilvusDB:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 检查集合是否存在
             if collection_name not in client.list_collections():
@@ -402,7 +358,7 @@ class MilvusDB:
         collection_name = self._process_collection_name(filename)
 
         try:
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 删除整个collection
             client.drop_collection(collection_name)
@@ -421,7 +377,7 @@ class MilvusDB:
         collection_name = self._process_collection_name(filename)
 
         try:
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 检查集合是否存在
             collections = client.list_collections()
@@ -453,7 +409,7 @@ class MilvusDB:
         collection_name = self._process_collection_name(filename)
 
         try:
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 检查集合是否存在
             collections = client.list_collections()
@@ -497,7 +453,7 @@ class MilvusDB:
         collection_name = self._process_collection_name(filename)
 
         try:
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 检查集合是否存在
             collections = client.list_collections()
@@ -539,7 +495,7 @@ class MilvusDB:
                 document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
                 filter = f'metadata["document_id"] in ({document_ids})'
 
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(uri=self.env('Milvus_url'))
             
             # 加载集合
             client.load_collection(self.collection_name)
@@ -559,29 +515,4 @@ class MilvusDB:
             print(f"向量搜索时出错: {e}！\n")
             raise
 
-    def search_by_full_text(self, query: str, **kwargs: Any) -> list[Document]:
-        """通过全文搜索查找文档"""
-        try:
-            document_ids_filter = kwargs.get("document_ids_filter")
-            filter_str = ""
-            if document_ids_filter:
-                document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
-                filter_str = f'metadata["document_id"] in ({document_ids})'
-
-            search_params = {
-                'params': {'drop_ratio_search': 0.2},
-            } 
-
-            results = self.client.search(
-                collection_name=self.collection_name,
-                data=[query],
-                anns_field="sparse_vector",
-                limit=kwargs.get("top_k", 4),
-                output_fields=["text", "metadata"],
-                filter=filter_str
-            )
-            
-            return self._process_search_results(results, ["text", "metadata"], kwargs.get("score_threshold", 0.0))
-        except Exception as e:
-            self.logger.error(f"全文搜索时出错: {e}", exc_info=True)
-            raise
+    

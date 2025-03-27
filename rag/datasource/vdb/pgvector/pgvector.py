@@ -2,6 +2,7 @@ from langchain_postgres import PGVector
 import os
 import environ
 from datetime import datetime
+from pypinyin import lazy_pinyin
 
 class PGVectorDB:
     def __init__(self, uploader="system"):
@@ -11,26 +12,131 @@ class PGVectorDB:
         environ.Env.read_env(env_file)
         self.uploader = uploader  # 添加uploader属性
 
-    def save_to_pgvector(self, splits, filename, embedding):
-        """保存分割后的文档到 PGVector 数据库
-
-        参数:
-        splits: 分割后的文档列表
+    def process_collection_name(self, filename):
+        """处理文件名，生成合法的 PGVector 集合名称
+        
+        参数：
         filename: 原始文件名
-        embedding:使用的embedding模型
+        
+        返回：
+        str: 处理后的集合名称
         """
+        # 移除文件扩展名
+        collection_name = os.path.splitext(filename)[0]
+        
+        # 转换为拼音
+        collection_name = '_'.join(lazy_pinyin(collection_name))
+        
+        # 替换非法字符为下划线
+        collection_name = ''.join(c if c.isalnum() else '_' for c in collection_name)
+        
+        # 清理连续的下划线
+        while '__' in collection_name:
+            collection_name = collection_name.replace('__', '_')
+        
+        # 移除首尾下划线
+        collection_name = collection_name.strip('_')
+        
+        # 确保不以数字开头
+        if collection_name[0].isdigit():
+            collection_name = 'c_' + collection_name
+        
+        # 添加标识
+        collection_name = f"{collection_name}_{str(hash(filename))[-6:]}"
+        
+        # 处理空名称情况
+        if not collection_name:
+            collection_name = f"collection_{str(hash(filename))}"
+
+        return collection_name
+
+    def get_all_segments(self, filename):
+        """获取文档的所有分段
+        
+        参数:
+        filename: 文件名
+        
+        返回:
+        list: 包含所有分段信息的列表，按segment_id排序
+        """
+        collection_name = self.process_collection_name(filename)
+
+        try:
+            # 获取collection，注意添加embeddings参数
+            from rag.splitter.DocumentSplitter import DocumentSplitter
+            splitter = DocumentSplitter()
+            
+            vectordb = PGVector(
+                collection_name=collection_name,
+                connection=self.env('PGvector_url'),
+                embeddings=splitter.embedding  # 添加embeddings参数
+            )
+
+            # 获取所有分段
+            results = vectordb._collection.find(
+                {},
+                {"text": 1, "metadata": 1, "_id": 0}
+            )
+            
+            # 转换为列表并排序
+            segments = list(results)
+            segments.sort(key=lambda x: x['metadata'].get('segment_id', 0))
+            
+            return segments
+
+        except Exception as e:
+            print(f"获取文档 {filename} 的所有分段时出错: {e}!!!\n")
+            raise
+
+    def get_segment(self, filename, segment_id):
+        """获取文档的特定分段
+        
+        参数:
+        filename: 文件名
+        segment_id: 分段ID
+        
+        返回:
+        dict: 包含分段信息的字典，如果未找到则返回 None
+        """
+        collection_name = self.process_collection_name(filename)
+
+        try:
+            # 获取collection，注意添加embeddings参数
+            from rag.splitter.DocumentSplitter import DocumentSplitter
+            splitter = DocumentSplitter()
+            
+            vectordb = PGVector(
+                collection_name=collection_name,
+                connection=self.env('PGvector_url'),
+                embeddings=splitter.embedding  # 添加embeddings参数
+            )
+
+            # 查询特定分段
+            result = vectordb._collection.find_one(
+                {"metadata.id": segment_id},
+                {"text": 1, "metadata": 1, "_id": 0}
+            )
+            
+            return result
+
+        except Exception as e:
+            print(f"获取文档 {filename} 的分段 {segment_id} 时出错: {e}!!!\n")
+            raise
+
+    def save_to_pgvector(self, splits, filename, embedding):
+        """保存分割后的文档到 PGVector 数据库"""
         if not splits:
             print("没有生成任何文本分段，请检查文档内容!!!")
             return
 
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
-        collection_name = filename.split(".")[0]
+        collection_name = self.process_collection_name(filename)  # 使用新的集合名称处理方法
         collection_metadata = {
-            "document_name": filename,  # 文档名称
-            "uploader": self.uploader,  # 使用实例的uploader
-            "upload_date": current_time,# 上传日期
-            "last_update_date": None,   # 最后更新日期
-            "source": "local_upload"    # 来源(本地、网络等)
+            "document_name": filename,
+            "uploader": self.uploader,
+            "upload_date": current_time,
+            "last_update_date": None,
+            "source": "local_upload"
         }
 
         vectordb = PGVector(

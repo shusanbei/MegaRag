@@ -6,6 +6,7 @@ import requests
 from langchain_core.documents import Document
 from rag.splitter.DocumentSplitter import DocumentSplitter
 from rag.load.DocumentLoader import DocumentLoader
+from environ import Env
 
 def is_ollama_running(host="http://127.0.0.1:11434"):
     """检查Ollama服务是否运行"""
@@ -25,14 +26,15 @@ class TestDocumentProcessing(unittest.TestCase):
         """测试开始前的设置"""
         # 初始化文档加载器和分割器
         cls.loader = DocumentLoader()
-        cls.ollama_host = "http://127.0.0.1:11434"
-        cls.OLLAMA_EMBEDDING_MODEL = "bge-m3:latest"
+        # 初始化环境变量
+        cls.env = Env()
+        env_file = os.path.join(ROOT_DIR, '.env')
+        Env.read_env(env_file)
         
         # 检查Ollama服务状态
-        cls.ollama_available = is_ollama_running(cls.ollama_host)
-        if cls.ollama_available:
-            cls.splitter = DocumentSplitter()
-        
+        cls.ollama_available = is_ollama_running()
+        cls.splitter = DocumentSplitter()
+
         # 加载测试文档
         doc_path = ROOT_DIR / "uploads" / "Dify文档.txt"
         cls.sample_documents = cls.loader.load_documents(str(doc_path))
@@ -80,8 +82,14 @@ class TestDocumentProcessing(unittest.TestCase):
     @unittest.skipUnless(is_ollama_running(), "Ollama服务未运行")
     def test_semantic_splitting(self):
         """测试语义分割方法"""
+        from langchain_ollama import OllamaEmbeddings
+        embedding = OllamaEmbeddings(
+            base_url=self.env('OLLAMA_HOST'),
+            model=self.env('OLLAMA_EMBEDDING_MODEL')
+        )
         splits = self.splitter.split_by_semantic(
             self.sample_documents,
+            embedding=embedding,
             chunk_size=200,
             chunk_overlap=20,
             similarity_threshold=0.7

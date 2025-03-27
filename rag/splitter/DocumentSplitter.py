@@ -6,26 +6,11 @@ import numpy as np
 import environ
 import os
 
-# 设置环境变量文件路径
-env = environ.Env()
-env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
-environ.Env.read_env(env_file)
-
 class DocumentSplitter:
-    def __init__(self, ollama_host=env('OLLAMA_HOST'), OLLAMA_EMBEDDING_MODEL=env('OLLAMA_EMBEDDING_MODEL')):
-        """初始化DocumentSplitter
-
-        Args:
-            ollama_host (str): Ollama服务地址        ***默认为本地的ollama的bge-m3:latest如果使用需要传入**
-            OLLAMA_EMBEDDING_MODEL (str): Ollama嵌入模型名称
-        """
-        print(ollama_host)
-        print(OLLAMA_EMBEDDING_MODEL)
-
-        self.embedding = OllamaEmbeddings(
-            base_url=ollama_host,
-            model=OLLAMA_EMBEDDING_MODEL
-        )
+    def __init__(self):
+        self.env = environ.Env()
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+        environ.Env.read_env(env_file)
 
     def _print_splits(self, splits):
         """打印分段结果"""
@@ -59,9 +44,17 @@ class DocumentSplitter:
         self._print_splits(splits)
         return splits
 
-    def split_by_semantic(self, documents, chunk_size=100, chunk_overlap=10, 
+    def split_by_semantic(self, documents, embedding, chunk_size=100, chunk_overlap=10, 
                          similarity_threshold=0.7):
-        """使用语义相似度进行文本分块"""
+        """使用语义相似度进行文本分块
+        
+        Args:
+            documents: 要分割的文档列表
+            embedding: **外部传入**的embedding模型实例
+            chunk_size: 分块大小
+            chunk_overlap: 分块重叠大小
+            similarity_threshold: 相似度阈值
+        """
         all_splits = []
         
         for doc in documents:
@@ -76,7 +69,7 @@ class DocumentSplitter:
                 all_splits.extend(initial_chunks)
                 continue
             
-            embeddings = self.embedding.embed_documents(initial_chunks)
+            embeddings = embedding.embed_documents(initial_chunks)
             
             final_chunks = [initial_chunks[0]]
             current_chunk = initial_chunks[0]
