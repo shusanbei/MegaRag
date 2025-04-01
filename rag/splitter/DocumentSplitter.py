@@ -26,8 +26,8 @@ class DocumentSplitter:
             length_function=len
         )
         splits = text_splitter.split_documents(documents)
-        print("\n---TokenTextSplitter--- 分割完成:")
-        self._print_splits(splits)
+        # print("\n---TokenTextSplitter--- 分割完成:")
+        # self._print_splits(splits)
         return splits
 
     def split_by_recursion(self, documents, separators=["\n\n", "\n", " ", ""], 
@@ -40,8 +40,8 @@ class DocumentSplitter:
             length_function=len
         )
         splits = text_splitter.split_documents(documents)
-        print("\n---RecursiveCharacterTextSplitter--- 分割完成:")
-        self._print_splits(splits)
+        # print("\n---RecursiveCharacterTextSplitter--- 分割完成:")
+        # self._print_splits(splits)
         return splits
 
     def split_by_semantic(self, documents, embedding, chunk_size=100, chunk_overlap=10, 
@@ -92,7 +92,7 @@ class DocumentSplitter:
             
             all_splits.extend(final_chunks)
         
-        splits = [Document(page_content=chunk) for chunk in all_splits]
-        print("\n---语义相似度分割--- 分割完成:")
-        self._print_splits(splits)
+        splits = [Document(page_content=chunk, metadata=doc.metadata) for chunk in all_splits]
+        # print("\n---语义相似度分割--- 分割完成:")
+        # self._print_splits(splits)
         return splits

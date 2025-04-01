@@ -1,0 +1,14 @@
+{
+    "collection_name": "Dify_wen_dang",
+    "embedding_model": "bge-m3",
+    "segments": [
+      {
+        "content": "新增的第一段内容",
+        "metadata": {"source": "source1"}
+      },
+      {
+        "content": "新增的第二段内容",
+        "metadata": {"source": "source2"}
+      }
+    ]
+}
