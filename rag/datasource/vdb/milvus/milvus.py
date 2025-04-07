@@ -180,7 +180,7 @@ class MilvusDB:
                     "bm25_b": 0.75
                 }, 
             )
-
+            
             if index_params:
                 # 如果提供了自定义索引参数，则使用自定义参数
                 index_params_obj = MilvusClient.prepare_index_params()
@@ -295,36 +295,54 @@ class MilvusDB:
             
             # 准备数据
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            data = []
-            for index, split in enumerate(splits):
-                # 获取文本内容
-                text = split if isinstance(split, str) else split.page_content
-                vector = embedding.embed_query(text)
-                
-                # 生成UUID字符串作为主键
-                uuid_str = str(uuid.uuid4())
-                
-                # 构建记录
-                record = {
-                    "id": uuid_str,
-                    "vector": vector,
-                    "text": str(text),
-                    "metadata": {
-                        "document_name": collection_name,
-                        "uploader": self.uploader,
-                        "upload_date": current_time,
-                        "last_update_date": None,
-                        "source": "local_upload",
-                        "segment_id": index
-                    }
-                }
-                data.append(record)
+            total_splits = len(splits)
+            batch_size = 1000  # 每批处理1000条数据
             
             # 连接 Milvus
-            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            client = MilvusClient(
+                uri=self.env('MILVUS_URI'),
+                # 优化写入性能的参数
+                segment_row_limit=1024*1024,  # 增加segment大小
+                auto_flush_interval=1  # 降低自动刷新频率
+            )
             
-            # 批量插入数据
-            client.insert(collection_name=collection_name, data=data)
+            # 批量处理数据
+            for batch_start in range(0, total_splits, batch_size):
+                batch_end = min(batch_start + batch_size, total_splits)
+                batch_data = []
+                
+                # 处理当前批次的数据
+                for index in range(batch_start, batch_end):
+                    split = splits[index]
+                    # 获取文本内容
+                    text = split if isinstance(split, str) else split.page_content
+                    vector = embedding.embed_query(text)
+                    
+                    # 生成UUID字符串作为主键
+                    uuid_str = str(uuid.uuid4())
+                    
+                    # 构建记录
+                    record = {
+                        "id": uuid_str,
+                        "vector": vector,
+                        "text": str(text),
+                        "metadata": {
+                            "document_name": collection_name,
+                            "uploader": self.uploader,
+                            "upload_date": current_time,
+                            "last_update_date": None,
+                            "source": "local_upload",
+                            "segment_id": index
+                        }
+                    }
+                    batch_data.append(record)
+                
+                # 批量插入数据
+                client.insert(collection_name=collection_name, data=batch_data)
+                
+                # 显示进度
+                progress = (batch_end / total_splits) * 100
+                print(f"导入进度: {progress:.2f}% ({batch_end}/{total_splits})")
             
             # 加载集合到内存
             client.load_collection(collection_name)
@@ -376,38 +394,53 @@ class MilvusDB:
                 # 删除原有集合
                 client.drop_collection(collection_name)
             
-            # 准备数据
-            data = []
-            for index, split in enumerate(splits):
-                # 获取文本内容
-                text = split if isinstance(split, str) else split.page_content
-                vector = embedding.embed_query(text)
-                
-                # 生成UUID字符串作为主键
-                uuid_str = str(uuid.uuid4())
-                
-                # 构建记录
-                record = {
-                    "id": uuid_str,
-                    "vector": vector,
-                    "text": str(text),
-                    "metadata": {
-                        "document_name": collection_name,
-                        "uploader": self.uploader,
-                        "upload_date": original_upload_date or current_time,
-                        "last_update_date": current_time,
-                        "source": "local_upload",
-                        "segment_id": index
-                    }
-                }
-                data.append(record)
+            # 准备批量处理
+            total_splits = len(splits)
+            batch_size = 1000  # 每批处理1000条数据
             
             # 创建集合
             self.collection_name = collection_name
-            self.create_collection([data[0]["vector"]])
+            sample_text = splits[0] if isinstance(splits[0], str) else splits[0].page_content
+            sample_vector = embedding.embed_query(sample_text)
+            self.create_collection([sample_vector])
             
-            # 批量插入数据
-            client.insert(collection_name=collection_name, data=data)
+            # 批量处理数据
+            for batch_start in range(0, total_splits, batch_size):
+                batch_end = min(batch_start + batch_size, total_splits)
+                batch_data = []
+                
+                # 处理当前批次的数据
+                for index in range(batch_start, batch_end):
+                    split = splits[index]
+                    # 获取文本内容
+                    text = split if isinstance(split, str) else split.page_content
+                    vector = embedding.embed_query(text)
+                    
+                    # 生成UUID字符串作为主键
+                    uuid_str = str(uuid.uuid4())
+                    
+                    # 构建记录
+                    record = {
+                        "id": uuid_str,
+                        "vector": vector,
+                        "text": str(text),
+                        "metadata": {
+                            "document_name": collection_name,
+                            "uploader": self.uploader,
+                            "upload_date": original_upload_date or current_time,
+                            "last_update_date": current_time,
+                            "source": "local_upload",
+                            "segment_id": index
+                        }
+                    }
+                    batch_data.append(record)
+                
+                # 批量插入数据
+                client.insert(collection_name=collection_name, data=batch_data)
+                
+                # 显示进度
+                progress = (batch_end / total_splits) * 100
+                print(f"更新进度: {progress:.2f}% ({batch_end}/{total_splits})")
             
             # 加载集合到内存
             client.load_collection(collection_name)
@@ -525,7 +558,6 @@ class MilvusDB:
         collection_name: 文件名
         id: 分段的唯一标识符
         """
-
         try:
             client = MilvusClient(uri=self.env('MILVUS_URI'))
             
@@ -615,7 +647,6 @@ class MilvusDB:
 
             result = []
             for col in collections:
-                collection_info = self.client.describe_collection(col)
                 result.append({
                     'name': col,
                 })
@@ -633,7 +664,6 @@ class MilvusDB:
         返回:
         list: 包含所有分段信息的列表
         """
-
         try:
             client = MilvusClient(uri=self.env('MILVUS_URI'))
             
@@ -705,14 +735,18 @@ class MilvusDB:
             raise
 
     # 搜索方法
-    def search_by_vector(self, query_vector: list[float], **kwargs: Any) -> list[Document]:
+    def search_by_vector(self, query: str, embedding, **kwargs: Any) -> list[Document]:
         """通过向量相似度搜索文档。
 
         参数:
-        query_vector: 查询向量
+        query: 查询文本
+        embedding: 使用的embedding模型
         kwargs: 其他参数，包括top_k、score_threshold等
         """
         try:
+            # 将查询文本转换为向量
+            query_vector = embedding.embed_query(query)
+            
             document_ids_filter = kwargs.get("document_ids_filter")
             filter = ""
             if document_ids_filter:
@@ -744,7 +778,15 @@ class MilvusDB:
             raise
 
     def search_by_full_text(self, query: str, **kwargs: Any) -> list[Document]:
-        """通过全文搜索查找文档"""
+        """通过全文搜索查找文档
+        
+        参数:
+        query: 查询关键词
+        kwargs: 其他参数，包括:
+            - top_k: 返回结果数量，默认为4
+            - score_threshold: 分数阈值，默认为0.0
+            - document_ids_filter: 文档ID过滤列表
+        """
         try:
             document_ids_filter = kwargs.get("document_ids_filter")
             filter_str = ""
@@ -752,17 +794,18 @@ class MilvusDB:
                 document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
                 filter_str = f'metadata["document_id"] in ({document_ids})'
 
-            search_params = {
-                'params': {'drop_ratio_search': 0.2},
-            } 
-
             results = self.client.search(
                 collection_name=self.collection_name,
                 data=[query],
                 anns_field="sparse_vector",
                 limit=kwargs.get("top_k", 4),
                 output_fields=["text", "metadata"],
-                filter=filter_str
+                filter=filter_str,
+                params={
+                    "bm25_k1": 1.5,             # 调整BM25参数以提高关键词匹配的灵敏度
+                    "bm25_b": 0.75,
+                    "min_should_match": 1       # 至少匹配一个关键词
+                }
             )
             
             return self._process_search_results(results, ["text", "metadata"], kwargs.get("score_threshold", 0.0))
@@ -770,6 +813,139 @@ class MilvusDB:
             self.logger.error(f"全文搜索时出错: {e}", exc_info=True)
             raise
     
-    def search_by_hybrid():
-        """通过混合搜索查找文档"""
-        pass
+    def search_by_hybrid(self, query: str, embedding, **kwargs: Any) -> list[Document]:
+        """通过混合搜索查找文档
+        
+        参数:
+        query: 查询文本
+        embedding: 使用的embedding模型
+        kwargs: 其他参数，包括:
+            - vector_weight: 向量搜索权重，默认为0.5
+            - text_weight: 文本搜索权重，默认为0.5
+            - top_k: 返回结果数量，默认为4
+            - score_threshold: 分数阈值，默认为0.0
+            - document_ids_filter: 文档ID过滤列表
+        
+        返回:
+        list[Document]: 混合搜索结果文档列表
+        """
+        try:
+            # 获取参数
+            vector_weight = kwargs.get("vector_weight", 0.5)
+            text_weight = kwargs.get("text_weight", 0.5)
+            top_k = kwargs.get("top_k", 4)
+            score_threshold = kwargs.get("score_threshold", 0.0)
+            document_ids_filter = kwargs.get("document_ids_filter")
+            
+            # 确保权重和为1
+            total_weight = vector_weight + text_weight
+            if total_weight != 1.0:
+                vector_weight = vector_weight / total_weight
+                text_weight = text_weight / total_weight
+            
+            # 生成查询向量
+            query_vector = embedding.embed_query(query)
+            
+            # 构建过滤条件
+            filter_str = ""
+            if document_ids_filter:
+                document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
+                filter_str = f'metadata["document_id"] in ({document_ids})'
+            
+            client = MilvusClient(uri=self.env('MILVUS_URI'))
+            
+            # 加载集合
+            client.load_collection(self.collection_name)
+            # 检查集合是否存在
+            collections = client.list_collections()
+            if self.collection_name not in collections:
+                raise Exception(f"集合 {self.collection_name} 不存在")
+            
+            # 修改实现方式：分别执行向量搜索和文本搜索，然后合并结果
+            results_combined = []
+            
+            # 1. 执行向量搜索
+            if vector_weight > 0:
+                vector_results = client.search(
+                    collection_name=self.collection_name,
+                    data=[query_vector],
+                    anns_field="vector",
+                    limit=top_k * 2,  # 获取更多结果以便后续合并
+                    output_fields=["id", "text", "metadata"],
+                    search_params={
+                        "metric_type": "L2",
+                        "params": {"nprobe": 10}
+                    },
+                    filter=filter_str
+                )
+                
+                # 处理向量搜索结果
+                for result in vector_results[0]:
+                    result["weighted_score"] = result["distance"] * vector_weight
+                    result["search_type"] = "vector"
+                    results_combined.append(result)
+            
+            # 2. 执行文本搜索 (BM25)
+            if text_weight > 0:
+                text_results = client.search(
+                    collection_name=self.collection_name,
+                    data=[query],
+                    anns_field="sparse_vector",
+                    limit=top_k * 2,  # 获取更多结果以便后续合并
+                    output_fields=["id", "text", "metadata"],
+                    search_params={
+                        "metric_type": "BM25",
+                        "params": {"drop_ratio_search": 0.2}
+                    },
+                    filter=filter_str
+                )
+                
+                # 处理文本搜索结果
+                for result in text_results[0]:
+                    result["weighted_score"] = result["distance"] * text_weight
+                    result["search_type"] = "text"
+                    results_combined.append(result)
+            
+            # 3. 合并结果并按加权分数排序
+            # 创建ID到结果的映射，合并相同ID的结果
+            merged_results = {}
+            for result in results_combined:
+                result_id = result["entity"]["id"]
+                if result_id in merged_results:
+                    # 如果ID已存在，累加加权分数
+                    merged_results[result_id]["weighted_score"] += result["weighted_score"]
+                    # 记录搜索类型
+                    merged_results[result_id]["search_types"].append(result["search_type"])
+                else:
+                    # 创建新条目
+                    merged_results[result_id] = {
+                        "entity": result["entity"],
+                        "weighted_score": result["weighted_score"],
+                        "search_types": [result["search_type"]]
+                    }
+            
+            # 转换为列表并排序
+            sorted_results = sorted(
+                merged_results.values(),
+                key=lambda x: x["weighted_score"],
+                reverse=True
+            )[:top_k]
+            
+            # 格式化为与原始API兼容的结果格式
+            formatted_results = []
+            for result in sorted_results:
+                formatted_result = {
+                    "entity": result["entity"],
+                    "distance": result["weighted_score"],
+                    "search_types": result["search_types"]
+                }
+                formatted_results.append(formatted_result)
+            
+            # 包装为与原始API兼容的结构
+            final_results = [formatted_results]
+            
+            return self._process_search_results(final_results, ["text", "metadata"], score_threshold)
+            
+        except Exception as e:
+            self.logger.error(f"混合搜索时出错: {e}", exc_info=True)
+            raise

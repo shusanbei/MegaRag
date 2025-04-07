@@ -869,6 +869,260 @@ def update_segment(vectordb):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/<vectordb>/search_by_vector', methods=['POST'])
+def search_by_vector(vectordb):
+    """通过向量相似度搜索文档
+    
+    <vectordb>  **(必填)
+    - milvus: 在Milvus向量数据库中搜索(默认)
+    - pgvector: 在PGVector向量数据库中搜索(待做)
+
+    请求参数(JSON格式):
+    - collection_name: 要搜索的集合名称                **(必填)
+    - query_text: 查询文本                          **(必填)
+    - embedding_model: embedding模型名称              **(默认使用环境变量中的OLLAMA_EMBEDDING_MODEL)
+    - top_k: 返回结果数量                            **(默认4)
+    - score_threshold: 分数阈值                      **(默认0.0)
+    - document_ids_filter: 文档ID过滤列表             **(可选)
+    
+    返回:
+    - JSON格式的搜索结果
+    """
+    try:
+        # 获取并验证JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '请求体必须为JSON格式'}), 400
+            
+        # 验证必填参数
+        collection_name = data.get('collection_name')
+        query_text = data.get('query_text')
+        if not collection_name or not query_text:
+            return jsonify({'error': '必须提供collection_name和query_text参数'}), 400
+            
+        # 获取embedding模型名称
+        embedding_model = data.get('embedding_model', env('OLLAMA_EMBEDDING_MODEL'))
+        
+        # 初始化embedding模型
+        embedding = OllamaEmbeddings(
+            base_url=env('OLLAMA_HOST'),
+            model=embedding_model
+        )
+            
+        # 获取可选参数
+        top_k = data.get('top_k', 4)
+        score_threshold = data.get('score_threshold', 0.0)
+        document_ids_filter = data.get('document_ids_filter')
+        
+        # 根据vectordb参数选择向量数据库
+        if vectordb.lower() == 'milvus':
+            db = MilvusDB()
+            try:
+                # 设置集合名称
+                db.collection_name = collection_name
+                
+                # 确保集合已加载
+                db._load_collection(collection_name)
+                
+                # 执行向量搜索
+                results = db.search_by_vector(
+                    query=query_text,
+                    embedding=embedding,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    document_ids_filter=document_ids_filter
+                )
+                
+                # 格式化返回结果
+                formatted_results = []
+                for i, doc in enumerate(results):
+                    formatted_results.append({
+                        'id': i + 1,
+                        'content': doc.page_content,
+                        'metadata': doc.metadata,
+                        'score': doc.metadata.get('score', 0.0)
+                    })
+                
+                return jsonify({
+                    'total': len(formatted_results),
+                    'results': formatted_results
+                })
+            finally:
+                # 确保释放集合资源
+                db._release_collection(collection_name)
+        else:
+            return jsonify({'error': f'不支持的向量数据库类型: {vectordb}'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/<vectordb>/search_by_full_text', methods=['POST'])
+def search_by_full_text(vectordb):
+    """通过全文搜索查找文档
+    
+    <vectordb>  **(必填)
+    - milvus: 在Milvus向量数据库中搜索(默认)
+    - pgvector: 在PGVector向量数据库中搜索(待做)
+
+    请求参数(JSON格式):
+    - collection_name: 要搜索的集合名称                **(必填)
+    - query: 查询文本                                **(必填)
+    - top_k: 返回结果数量                            **(默认4)
+    - score_threshold: 分数阈值                      **(默认0.0)
+    - document_ids_filter: 文档ID过滤列表             **(可选)
+    
+    返回:
+    - JSON格式的搜索结果
+    """
+    try:
+        # 获取并验证JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '请求体必须为JSON格式'}), 400
+            
+        # 验证必填参数
+        collection_name = data.get('collection_name')
+        query = data.get('query')
+        if not collection_name or not query:
+            return jsonify({'error': '必须提供collection_name和query参数'}), 400
+            
+        # 获取可选参数
+        top_k = data.get('top_k', 4)
+        score_threshold = data.get('score_threshold', 0.0)
+        document_ids_filter = data.get('document_ids_filter')
+        
+        # 根据vectordb参数选择向量数据库
+        if vectordb.lower() == 'milvus':
+            db = MilvusDB()
+            try:
+                # 设置集合名称
+                db.collection_name = collection_name
+                
+                # 确保集合已加载
+                db._load_collection(collection_name)
+                
+                # 执行全文搜索
+                results = db.search_by_full_text(
+                    query=query,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    document_ids_filter=document_ids_filter
+                )
+                
+                # 格式化返回结果
+                formatted_results = []
+                for i, doc in enumerate(results):
+                    formatted_results.append({
+                        'id': i + 1,
+                        'content': doc.page_content,
+                        'metadata': doc.metadata,
+                        'score': doc.metadata.get('score', 0.0)
+                    })
+                
+                return jsonify({
+                    'total': len(formatted_results),
+                    'results': formatted_results
+                })
+            finally:
+                # 确保释放集合资源
+                db._release_collection(collection_name)
+        else:
+            return jsonify({'error': f'不支持的向量数据库类型: {vectordb}'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/<vectordb>/search_by_hybrid', methods=['POST'])
+def search_by_hybrid(vectordb):
+    """通过混合搜索查找文档（结合向量搜索和全文搜索）
+    
+    <vectordb>  **(必填)
+    - milvus: 在Milvus向量数据库中搜索(默认)
+    - pgvector: 在PGVector向量数据库中搜索(待做)
+
+    请求参数(JSON格式):
+    - collection_name: 要搜索的集合名称                **(必填)
+    - query: 查询文本                                **(必填)
+    - embedding_model: embedding模型名称              **(默认bge-m3)
+    - vector_weight: 向量搜索权重                     **(默认0.5)
+    - text_weight: 文本搜索权重                       **(默认0.5)
+    - top_k: 返回结果数量                            **(默认4)
+    - score_threshold: 分数阈值                      **(默认0.0)
+    - document_ids_filter: 文档ID过滤列表             **(可选)
+    
+    返回:
+    - JSON格式的搜索结果
+    """
+    try:
+        # 获取并验证JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '请求体必须为JSON格式'}), 400
+            
+        # 验证必填参数
+        collection_name = data.get('collection_name')
+        query = data.get('query')
+        if not collection_name or not query:
+            return jsonify({'error': '必须提供collection_name和query参数'}), 400
+            
+        # 获取可选参数
+        embedding_model = data.get('embedding_model', 'bge-m3')
+        vector_weight = data.get('vector_weight', 0.5)
+        text_weight = data.get('text_weight', 0.5)
+        top_k = data.get('top_k', 4)
+        score_threshold = data.get('score_threshold', 0.0)
+        document_ids_filter = data.get('document_ids_filter')
+        
+        # 初始化embedding模型
+        embedding = OllamaEmbeddings(
+            base_url=env('OLLAMA_HOST'),
+            model=embedding_model
+        )
+        
+        # 根据vectordb参数选择向量数据库
+        if vectordb.lower() == 'milvus':
+            db = MilvusDB()
+            try:
+                # 设置集合名称
+                db.collection_name = collection_name
+                
+                # 确保集合已加载
+                db._load_collection(collection_name)
+                
+                # 执行混合搜索
+                results = db.search_by_hybrid(
+                    query=query,
+                    embedding=embedding,
+                    vector_weight=vector_weight,
+                    text_weight=text_weight,
+                    top_k=top_k,
+                    score_threshold=score_threshold,
+                    document_ids_filter=document_ids_filter
+                )
+                
+                # 格式化返回结果
+                formatted_results = []
+                for i, doc in enumerate(results):
+                    formatted_results.append({
+                        'id': i + 1,
+                        'content': doc.page_content,
+                        'metadata': doc.metadata,
+                        'score': doc.metadata.get('score', 0.0)
+                    })
+                
+                return jsonify({
+                    'total': len(formatted_results),
+                    'results': formatted_results
+                })
+            finally:
+                # 确保释放集合资源
+                db._release_collection(collection_name)
+        else:
+            return jsonify({'error': f'不支持的向量数据库类型: {vectordb}'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 
 if __name__ == '__main__':

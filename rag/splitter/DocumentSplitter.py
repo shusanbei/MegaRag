@@ -2,6 +2,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, TokenTextSp
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
 from sklearn.metrics.pairwise import cosine_similarity
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import environ
 import os
@@ -18,35 +19,45 @@ class DocumentSplitter:
         for i, split in enumerate(splits):
             print(f"\n分段 {i+1}: {split.page_content}")
 
-    def split_by_token(self, documents, chunk_size=400, chunk_overlap=20):
-        """使用TokenTextSplitter(文本块)分割文档"""
-        text_splitter = TokenTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            length_function=len
-        )
-        splits = text_splitter.split_documents(documents)
-        # print("\n---TokenTextSplitter--- 分割完成:")
-        # self._print_splits(splits)
+    def split_by_token(self, documents, chunk_size=400, chunk_overlap=20, max_workers=4):
+        """使用TokenTextSplitter(文本块)并行分割文档"""
+        def process_document(doc):
+            text_splitter = TokenTextSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                length_function=len
+            )
+            return text_splitter.split_documents([doc])
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_document, doc) for doc in documents]
+            splits = []
+            for future in as_completed(futures):
+                splits.extend(future.result())
         return splits
 
     def split_by_recursion(self, documents, separators=["\n\n", "\n", " ", ""], 
-                          chunk_size=400, chunk_overlap=20):
-        """使用RecursiveCharacterTextSplitter(分隔符)递归分割文档"""
-        text_splitter = RecursiveCharacterTextSplitter(
-            separators=separators,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            length_function=len
-        )
-        splits = text_splitter.split_documents(documents)
-        # print("\n---RecursiveCharacterTextSplitter--- 分割完成:")
-        # self._print_splits(splits)
+                          chunk_size=400, chunk_overlap=20, max_workers=4):
+        """使用RecursiveCharacterTextSplitter(分隔符)并行递归分割文档"""
+        def process_document(doc):
+            text_splitter = RecursiveCharacterTextSplitter(
+                separators=separators,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                length_function=len
+            )
+            return text_splitter.split_documents([doc])
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_document, doc) for doc in documents]
+            splits = []
+            for future in as_completed(futures):
+                splits.extend(future.result())
         return splits
 
     def split_by_semantic(self, documents, embedding, chunk_size=100, chunk_overlap=10, 
-                         similarity_threshold=0.7):
-        """使用语义相似度进行文本分块
+                         similarity_threshold=0.7, batch_size=32, max_workers=4):
+        """使用语义相似度进行文本分块，采用批处理和并行处理优化性能
         
         Args:
             documents: 要分割的文档列表
@@ -54,10 +65,10 @@ class DocumentSplitter:
             chunk_size: 分块大小
             chunk_overlap: 分块重叠大小
             similarity_threshold: 相似度阈值
+            batch_size: 批处理大小，用于批量计算embeddings
+            max_workers: 并行处理的最大线程数
         """
-        all_splits = []
-        
-        for doc in documents:
+        def process_document(doc):
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
@@ -66,10 +77,14 @@ class DocumentSplitter:
             initial_chunks = text_splitter.split_text(doc.page_content)
             
             if len(initial_chunks) <= 2:
-                all_splits.extend(initial_chunks)
-                continue
+                return initial_chunks
             
-            embeddings = embedding.embed_documents(initial_chunks)
+            # 批量计算embeddings
+            embeddings = []
+            for i in range(0, len(initial_chunks), batch_size):
+                batch = initial_chunks[i:i + batch_size]
+                batch_embeddings = embedding.embed_documents(batch)
+                embeddings.extend(batch_embeddings)
             
             final_chunks = [initial_chunks[0]]
             current_chunk = initial_chunks[0]
@@ -90,9 +105,15 @@ class DocumentSplitter:
                     current_chunk = initial_chunks[i]
                     current_embedding = embeddings[i]
             
-            all_splits.extend(final_chunks)
+            return final_chunks
         
-        splits = [Document(page_content=chunk, metadata=doc.metadata) for chunk in all_splits]
-        # print("\n---语义相似度分割--- 分割完成:")
-        # self._print_splits(splits)
-        return splits
+        # 并行处理文档
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_document, doc) for doc in documents]
+            all_splits = []
+            for doc, future in zip(documents, futures):
+                chunks = future.result()
+                all_splits.extend([Document(page_content=chunk, metadata=doc.metadata) 
+                                 for chunk in chunks])
+        
+        return all_splits
