@@ -931,7 +931,6 @@ class MilvusDB:
                 reverse=True
             )[:top_k]
             
-            # 格式化为与原始API兼容的结果格式
             formatted_results = []
             for result in sorted_results:
                 formatted_result = {
@@ -941,7 +940,6 @@ class MilvusDB:
                 }
                 formatted_results.append(formatted_result)
             
-            # 包装为与原始API兼容的结构
             final_results = [formatted_results]
             
             return self._process_search_results(final_results, ["text", "metadata"], score_threshold)
