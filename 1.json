@@ -1,0 +1,59 @@
+{
+    "results": [
+        {
+            "content": "Dify是一款专注于生成式AI应用开发的开源平台，它的设计旨在帮助开发者快速构建和部署基于大语言模型（LLM）的应用程序。Dify的架构围绕着几个核心组件展开，以支持高效、灵活的AI应用开发流程。以下是Dify架构的主要组成部分：\nEnterprise LLMOps：",
+            "id": 1,
+            "metadata": {
+                "document_name": "Dify_wen_dang",
+                "last_update_date": "2025-03-29 16:28:41",
+                "rerank_score": 0.9983155727386475,
+                "segment_id": 9,
+                "source": "local_upload",
+                "text_score": 0.0,
+                "upload_date": "2025-03-29 16:28:41",
+                "uploader": "api_user",
+                "vector_score": 0.7636874318122864
+            },
+            "rerank_score": null,
+            "text_score": 0.0,
+            "vector_score": 0.7636874318122864
+        },
+        {
+            "content": "1. **Dify是什么？**\n   - Dify是一个开源的大语言模型（LLM）应用开发平台，它结合了后端即服务（Backend as Service, BaaS）和LLMOps的理念，旨在帮助开发者快速搭建和部署生成式AI应用程序。\n2. **Dify的主要特点有哪些？**\n   - Dify的主要特点包括简化开发流程、支持多种模型、提供LLMOps支持以及拥有活跃的社区和资源。",
+            "id": 2,
+            "metadata": {
+                "document_name": "Dify_wen_dang",
+                "last_update_date": "2025-03-29 16:28:41",
+                "rerank_score": 0.9907049536705017,
+                "segment_id": 0,
+                "source": "local_upload",
+                "text_score": 2.092174530029297,
+                "upload_date": "2025-03-29 16:28:41",
+                "uploader": "api_user",
+                "vector_score": 0.8114773631095886
+            },
+            "rerank_score": null,
+            "text_score": 2.092174530029297,
+            "vector_score": 0.8114773631095886
+        },
+        {
+            "content": "3. **Dify支持哪些类型的模型？**\n   - Dify支持与数百个专有和开源LLM无缝集成，包括GPT、Mistral、Llama3以及任何与OpenAI API兼容的模型。\n4. **Dify如何帮助开发者简化AI应用的开发流程？**\n   - Dify通过提供一系列工具和服务，如可视化的Prompt编排、数据集管理等，来简化大语言模型应用的开发流程。",
+            "id": 3,
+            "metadata": {
+                "document_name": "Dify_wen_dang",
+                "last_update_date": "2025-03-29 16:28:41",
+                "rerank_score": 0.8489252924919128,
+                "segment_id": 1,
+                "source": "local_upload",
+                "text_score": 0.0,
+                "upload_date": "2025-03-29 16:28:41",
+                "uploader": "api_user",
+                "vector_score": 1.069956660270691
+            },
+            "rerank_score": null,
+            "text_score": 0.0,
+            "vector_score": 1.069956660270691
+        }
+    ],
+    "total": 3
+}

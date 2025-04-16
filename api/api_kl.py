@@ -16,6 +16,10 @@ env = environ.Env()
 env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 environ.Env.read_env(env_file)
 
+# 从环境变量获取Flask配置
+flask_host = env('FLASK_HOST', default='0.0.0.0')
+flask_port = env.int('FLASK_PORT', default=19500)
+
 @app.route('/api/split', methods=['POST'])
 def split_document():
     """文档分割
@@ -936,12 +940,15 @@ def search_by_vector(vectordb):
                 # 格式化返回结果
                 formatted_results = []
                 for i, doc in enumerate(results):
-                    formatted_results.append({
+                    result = {
                         'id': i + 1,
                         'content': doc.page_content,
                         'metadata': doc.metadata,
-                        'score': doc.metadata.get('score', 0.0)
-                    })
+                        'vector_score': doc.metadata.get('vector_score'),
+                        'text_score': doc.metadata.get('text_score'),
+                        'rerank_score': doc.metadata.get('rerank_score')
+                    }
+                    formatted_results.append(result)
                 
                 return jsonify({
                     'total': len(formatted_results),
@@ -1012,12 +1019,15 @@ def search_by_full_text(vectordb):
                 # 格式化返回结果
                 formatted_results = []
                 for i, doc in enumerate(results):
-                    formatted_results.append({
+                    result = {
                         'id': i + 1,
                         'content': doc.page_content,
                         'metadata': doc.metadata,
-                        'score': doc.metadata.get('score', 0.0)
-                    })
+                        'vector_score': doc.metadata.get('vector_score'),
+                        'text_score': doc.metadata.get('text_score'),
+                        'rerank_score': doc.metadata.get('rerank_score')
+                    }
+                    formatted_results.append(result)
                 
                 return jsonify({
                     'total': len(formatted_results),
@@ -1049,6 +1059,8 @@ def search_by_hybrid(vectordb):
     - top_k: 返回结果数量                            **(默认4)
     - score_threshold: 分数阈值                      **(默认0.0)
     - document_ids_filter: 文档ID过滤列表             **(可选)
+    - rerank_model: 重排序模型名称                    **(可选)
+    - rerank_top_k: 重排序返回结果数量                **(默认4)
     
     返回:
     - JSON格式的搜索结果
@@ -1072,6 +1084,8 @@ def search_by_hybrid(vectordb):
         top_k = data.get('top_k', 4)
         score_threshold = data.get('score_threshold', 0.0)
         document_ids_filter = data.get('document_ids_filter')
+        rerank_model = data.get('rerank_model')
+        rerank_top_k = data.get('rerank_top_k', 4)
         
         # 初始化embedding模型
         embedding = OllamaEmbeddings(
@@ -1097,18 +1111,23 @@ def search_by_hybrid(vectordb):
                     text_weight=text_weight,
                     top_k=top_k,
                     score_threshold=score_threshold,
-                    document_ids_filter=document_ids_filter
+                    document_ids_filter=document_ids_filter,
+                    rerank_model=rerank_model,
+                    rerank_top_k=rerank_top_k
                 )
                 
                 # 格式化返回结果
                 formatted_results = []
                 for i, doc in enumerate(results):
-                    formatted_results.append({
+                    result = {
                         'id': i + 1,
                         'content': doc.page_content,
                         'metadata': doc.metadata,
-                        'score': doc.metadata.get('score', 0.0)
-                    })
+                        'vector_score': doc.metadata.get('vector_score'),
+                        'text_score': doc.metadata.get('text_score'),
+                        'rerank_score': doc.metadata.get('rerank_score')
+                    }
+                    formatted_results.append(result)
                 
                 return jsonify({
                     'total': len(formatted_results),
@@ -1123,7 +1142,6 @@ def search_by_hybrid(vectordb):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host=flask_host, port=flask_port, debug=True)
+    

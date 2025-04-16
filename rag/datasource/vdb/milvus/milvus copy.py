@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Any, Optional
@@ -25,6 +26,15 @@ class MilvusDB:
         # 初始化 Milvus 客户端
         self.client = MilvusClient(uri=uri)
         self.collection_name = None
+        # 配置日志
+        self.logger = logging.getLogger(__name__)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
 
     # 辅助方法
     def _process_collection_name(self, filename):
@@ -79,17 +89,13 @@ class MilvusDB:
             
             # 根据搜索类型设置不同的分数名称
             if search_type == "vector":
-                metadata["vector_score"] = float(result["distance"])
+                metadata["vector_score"] = result["distance"]
             elif search_type == "text":
-                metadata["text_score"] = float(result["distance"])
+                metadata["text_score"] = result["distance"]
             elif search_type == "hybrid":
-                metadata["vector_score"] = float(result.get("vector_distance"))
-                metadata["text_score"] = float(result.get("text_distance"))
-            
-            # 添加rerank分数（如果存在）
-            if "rerank_score" in result:
-                metadata["rerank_score"] = float(result["rerank_score"])
-
+                metadata["vector_score"] = result.get("vector_distance", 0.0)
+                metadata["text_score"] = result.get("text_distance", 0.0)
+    
             if result["distance"] > score_threshold:
                 doc = Document(
                     page_content=result["entity"].get(output_fields[0], ""),
@@ -97,7 +103,6 @@ class MilvusDB:
                 )
                 docs.append(doc)
     
-        # 返回只包含content和metadata的文档列表
         return docs
 
     def _check_collection_exists(self, collection_name):
@@ -545,16 +550,16 @@ class MilvusDB:
             
             # 检查集合是否存在
             if collection_name not in client.list_collections():
-                print(f"集合 {collection_name} 不存在")
+                self.logger.warning(f"集合 {collection_name} 不存在")
                 return False
             
             # 删除整个collection
             client.drop_collection(collection_name)
-            print(f"文档: {collection_name} 删除成功！")
+            self.logger.info(f"文档: {collection_name} 删除成功！")
             return True
             
         except Exception as e:
-            print(f"删除文档: {collection_name} 时出错: {str(e)}")
+            self.logger.error(f"删除文档: {collection_name} 时出错: {str(e)}")
             return False
 
     def delete_document_segment(self, collection_name, id):
@@ -637,7 +642,7 @@ class MilvusDB:
                 'name': collection_name
             }
         except Exception as e:
-            print(f"获取集合 {collection_name} 元数据失败: {str(e)}")
+            self.logger.error(f"获取集合 {collection_name} 元数据失败: {str(e)}")
             return {
                 'metadata': {},
                 'name': collection_name
@@ -658,7 +663,7 @@ class MilvusDB:
                 })
             return result
         except Exception as e:
-            print(f"获取集合列表失败: {str(e)}")
+            self.logger.error(f"获取集合列表失败: {str(e)}")
             return []
             
     def get_all_segments(self, collection_name):
@@ -832,7 +837,7 @@ class MilvusDB:
             
             return self._process_search_results(results, ["text", "metadata"], kwargs.get("score_threshold", 0.0), search_type="text")
         except Exception as e:
-            print(f"全文搜索时出错: {e}")
+            self.logger.error(f"全文搜索时出错: {e}", exc_info=True)
             raise
     
     def search_by_hybrid(self, query: str, embedding, **kwargs: Any) -> list[Document]:
@@ -860,8 +865,6 @@ class MilvusDB:
             top_k = kwargs.get("top_k", 4)
             score_threshold = kwargs.get("score_threshold", 0.0)
             document_ids_filter = kwargs.get("document_ids_filter")
-            rerank_model = kwargs.get("rerank_model")
-            rerank_top_k = kwargs.get("rerank_top_k", 4)
             
             # 确保权重和为1
             total_weight = vector_weight + text_weight
@@ -957,45 +960,17 @@ class MilvusDB:
             for result in sorted_results:
                 formatted_result = {
                     "entity": result["entity"],
-                    "distance": float(result["weighted_score"]),          
-                    "vector_distance": float(result["vector_distance"]),  
-                    "text_distance": float(result["text_distance"])       
+                    "distance": result["weighted_score"],
+                    "vector_distance": result["vector_distance"],
+                    "text_distance": result["text_distance"]
                 }
                 formatted_results.append(formatted_result)
             
-            # 如果提供了rerank模型，进行重排序
-            if rerank_model:
-                try:
-                    print(f"------开始进行rerank，加载rerank模型: {rerank_model}-------")
-                    from rag.models.reranks.rerank import XinferenceRerank
-                    reranker = XinferenceRerank(rerank_model)
-                    
-                    # 准备文档列表和查询
-                    docs = [result["entity"]["text"] for result in formatted_results]
-                    
-                    # 执行rerank
-                    rerank_results = reranker.rerank(docs, query)
-                    
-                    # 将rerank分数添加到原始结果中
-                    for i, rerank_result in enumerate(rerank_results):
-                        formatted_results[rerank_result["index"]]["rerank_score"] = float(rerank_result["relevance_score"])
-                    
-                    # 根据rerank分数重新排序
-                    formatted_results.sort(key=lambda x: x["rerank_score"], reverse=True)
-                    
-                    # 保留前rerank_top_k个结果
-                    formatted_results = formatted_results[:rerank_top_k]
-                    print(f"------rerank完成-------")
-
-                except Exception as e:
-                    print(f"Rerank过程出错: {e}")
-                    # 如果rerank失败，继续使用原始排序结果
-                    pass
-
             final_results = [formatted_results]
             
+            # 处理搜索结果
             return self._process_search_results(final_results, ["text", "metadata"], score_threshold, search_type="hybrid")
             
         except Exception as e:
-            print(f"混合搜索时出错: {e}")
+            self.logger.error(f"混合搜索时出错: {e}", exc_info=True)
             raise

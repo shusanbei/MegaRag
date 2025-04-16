@@ -57,7 +57,7 @@ class DocumentSplitter:
 
     def split_by_semantic(self, documents, embedding, chunk_size=100, chunk_overlap=10, 
                          similarity_threshold=0.7, batch_size=32, max_workers=4):
-        """使用语义相似度进行文本分块，采用批处理和并行处理优化性能
+        """使用语义相似度进行文本分块
         
         Args:
             documents: 要分割的文档列表
