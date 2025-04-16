@@ -19,7 +19,7 @@
 
 - Python 3.11+
 - 主要依赖包：
-  - langchain 相关组件 (community, core, text-splitters等)
+  - langchain 相关组件 (community, core, text-splitters等,进行分割时会使用)
   - Flask >= 3.0.2
   - PyMilvus >= 2.4.0
   - Ollama (可选，用于语义分割)
@@ -33,7 +33,7 @@ pip install -r requires.txt
 ```
 
 2. 配置环境变量：
-在项目根目录创建 .env 文件，配置必要的环境变量
+在项目根目录创建 .env 文件，查看并配置必要的环境变量
 
 3. 启动向量数据库服务：
 - 如使用 PGVector，确保 PostgreSQL 服务已启动, 并在 .env 文件中配置
@@ -44,7 +44,6 @@ pip install -r requires.txt
 ```
 .
 ├── api/                # API 接口
-├── docs/               # 文档
 ├── rag/                # 核心代码
 │   ├── datasource/     # 数据库实现
 │   ├── load/           # 文档加载
