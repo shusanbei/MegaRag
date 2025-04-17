@@ -1,3 +1,12 @@
+import os
+import sys
+from pathlib import Path
+
+# 获取项目根目录的绝对路径
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
+# 之后再导入模块
 from rag.load.DocumentLoader import DocumentLoader
 from rag.splitter.DocumentSplitter import DocumentSplitter
 from rag.datasource.vdb.milvus.milvus import MilvusDB
@@ -569,8 +578,6 @@ def delete_collection(vectordb):
     
     路径参数:
     - vectordb: 向量数据库类型(milvus)     **(必填)
-    
-    请求参数:
     - collection_name: 要删除的集合名称    **(必填)
     
     返回:
@@ -578,8 +585,10 @@ def delete_collection(vectordb):
     """
     # 检查请求参数
     collection_name = request.args.get('collection_name')
-    if not collection_name or not vectordb:
-        return jsonify({'error': '缺少必填参数: collection_name or vectordb'}), 400
+    if not collection_name :
+        return jsonify({'error': '缺少必填参数: collection_name'}), 400
+    if not vectordb:
+        return jsonify({'error': '缺少必填参数: vectordb'}), 400
     try:
         # 根据数据库类型选择操作方式
         if vectordb.lower() == 'milvus':
@@ -609,7 +618,7 @@ def add_segments(vectordb):
     - embedding_model: embedding模型名称              **(默认bge-m3)
     - uploader: 上传者名称                            **(默认api_user)
     - collection_name: 要更新的集合名称                **(必填)
-    - segments: 文档片段数组                          **(必填)
+    - segments: 文档片段数组                           **(必填)
       [
         {
           "content": "文本内容",
@@ -908,9 +917,7 @@ def search_by_vector(vectordb):
             return jsonify({'error': '必须提供collection_name和query_text参数'}), 400
             
         # 获取embedding模型名称
-        embedding_model = data.get('embedding_model', env('OLLAMA_EMBEDDING_MODEL'))
-        
-        # 初始化embedding模型
+        embedding_model = request.form.get('embedding_model', 'bge-m3')
         embedding = OllamaEmbeddings(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model

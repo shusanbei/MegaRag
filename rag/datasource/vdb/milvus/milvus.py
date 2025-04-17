@@ -214,7 +214,7 @@ class MilvusDB:
         """
         try:
             # 检查集合是否存在
-            collections = client.list_collections()
+            collections = self.client.list_collections()
             if collection_name not in collections:
                 raise Exception(f"集合 {collection_name} 不存在")
 
@@ -271,9 +271,9 @@ class MilvusDB:
             print("没有生成任何文本分段，请检查文档内容！")
             return
         # 检查集合是否存在
-        collections = client.list_collections()
-        if self.collection_name not in collections:
-            raise Exception(f"集合 {self.collection_name} 不存在")
+        collections = self.client.list_collections()
+        if collection_name not in collections:
+            raise Exception(f"集合 {collection_name} 不存在")
 
         return self.save_to_milvus(splits, collection_name, embedding)
 
@@ -568,7 +568,7 @@ class MilvusDB:
             client = MilvusClient(uri=self.env('MILVUS_URI'))
             
             # 检查集合是否存在
-            collections = client.list_collections()
+            collections = self.client.list_collections()
             if collection_name not in collections:
                 raise Exception(f"集合 {collection_name} 不存在")
 
@@ -712,7 +712,7 @@ class MilvusDB:
             client = MilvusClient(uri=self.env('MILVUS_URI'))
             
             # 检查集合是否存在
-            collections = client.list_collections()
+            collections = self.client.list_collections()
             if collection_name not in collections:
                 raise Exception(f"集合 {collection_name} 不存在")
             
@@ -754,7 +754,7 @@ class MilvusDB:
             client = MilvusClient(uri=self.env('MILVUS_URI'))
             
             # 检查集合是否存在
-            collections = client.list_collections()
+            collections = self.client.list_collections()
             if collection_name not in collections:
                 raise Exception(f"集合 {collection_name} 不存在")
             
