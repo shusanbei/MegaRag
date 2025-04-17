@@ -317,10 +317,9 @@ def select_all_KB(vectordb):
     - limit: 每页数量 (默认20)
 
     返回:
-    - JSON格式的知识库列表
+    - JSON格式的知识库列表，包含每个知识库的名称、创建者、来源、创建时间和更新时间
     """
     try:
-        db = MilvusDB()
         # 获取分页参数
         try:
             # 直接从URL查询字符串获取参数
@@ -328,43 +327,47 @@ def select_all_KB(vectordb):
             limit = min(100, max(1, int(request.args.get('limit', 20))))
         except ValueError:
             return jsonify({'error': '分页参数必须为整数'}), 400
-            
-        collections = db.list_collections()
-        total = len(collections)
-        start_idx = (page - 1) * limit
-        end_idx = min(start_idx + limit, total)
         
         # 根据数据库类型选择查询方式
         if vectordb.lower() == 'milvus':
+            db = MilvusDB()
+            collections = db.list_collections()
+            
+            # 获取所有集合的元数据
             formatted = []
-            for col in collections[start_idx:end_idx]:
-                metadata = db.get_collection_metadata(col['name'])
+            for collection in collections:
+                metadata = db.get_collection_metadata(collection['name'])
+                collection_metadata = metadata.get('metadata', {})
+                
                 formatted.append({
-                    'name': metadata.get('metadata').get('document_name', col['name']),
-                    'created_by': metadata.get('metadata').get('uploader', ''),
-                    'source': metadata.get('metadata').get('source', ''),
-                    'created_at': metadata.get('metadata').get('upload_date', ''),
-                    'updated_at': metadata.get('metadata').get('last_update_date', '')
+                    'name': collection_metadata.get('document_name', collection['name']),
+                    'created_by': collection_metadata.get('uploader', ''),
+                    'source': collection_metadata.get('source', ''),
+                    'created_at': collection_metadata.get('upload_date', ''),
+                    'updated_at': collection_metadata.get('last_update_date', ''),
+                    'total_segments': collection.get('row_count', 0)
                 })
+            
+            # 对结果进行分页
+            total = len(formatted)
+            start_idx = (page - 1) * limit
+            end_idx = min(start_idx + limit, total)
+            paginated_data = formatted[start_idx:end_idx]
+            
+            return jsonify({
+                'data': paginated_data,
+                'has_more': end_idx < total,
+                'limit': limit,
+                'total': total,
+                'page': page,
+                'total_pages': (total + limit - 1) // limit
+            })
+            
         elif vectordb.lower() == 'pgvector':
             # 实现PGVector的查询逻辑
-            # ...
-            pass
+            return jsonify({'error': 'PGVector支持待实现'}), 501
         else:
             return jsonify({'error': f'不支持的向量数据库类型: {vectordb}'}), 400
-
-        # 修正has_more逻辑：当总条目数刚好等于limit时返回false
-        has_more = (total - limit) > 0
-        return jsonify({
-            'data': formatted,
-            'has_more': has_more,
-            'limit': limit,
-            'total': total,
-            'page': page,
-            'total_pages': (total + limit - 1) // limit
-        })
-        
-        return jsonify({'error': f'暂不支持的向量数据库类型: {vectordb}'}), 400
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

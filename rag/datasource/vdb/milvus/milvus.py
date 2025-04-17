@@ -644,19 +644,57 @@ class MilvusDB:
             }
             
     def list_collections(self):
-        """获取所有知识库集合的元数据"""
+        """获取所有集合的列表
+        
+        返回:
+        list: 包含所有集合信息的列表
+        """
         try:
-            # 检查集合是否存在
-            collections = self.client.list_collections()
-            if collection_name not in collections:
-                raise Exception(f"集合 {collection_name} 不存在")
-
-            result = []
-            for col in collections:
-                result.append({
-                    'name': col,
-                })
-            return result
+            # 获取所有集合名称
+            collection_names = self.client.list_collections()
+            collections = []
+            
+            # 获取每个集合的详细信息
+            for name in collection_names:
+                try:
+                    collection_info = self.client.describe_collection(name)
+                    stats = self.client.get_collection_stats(name)
+                    
+                    # 查询一条记录以获取元数据信息
+                    metadata = {}
+                    results = self.client.query(
+                        collection_name=name,
+                        filter="",
+                        output_fields=["metadata"],
+                        limit=1
+                    )
+                    if results and len(results) > 0:
+                        metadata = results[0].get("metadata", {})
+                        if isinstance(metadata, str):
+                            metadata = eval(metadata)
+                    
+                    collections.append({
+                        'name': name,
+                        'row_count': stats.get('row_count', 0),
+                        'document_name': metadata.get('document_name', name),
+                        'uploader': metadata.get('uploader', 'unknown'),
+                        'upload_date': metadata.get('upload_date', ''),
+                        'last_update_date': metadata.get('last_update_date', ''),
+                        'source': metadata.get('source', '')
+                    })
+                except Exception as e:
+                    print(f"获取集合 {name} 的详细信息失败: {str(e)}")
+                    collections.append({
+                        'name': name,
+                        'row_count': 0,
+                        'document_name': name,
+                        'uploader': 'unknown',
+                        'upload_date': '',
+                        'last_update_date': '',
+                        'source': ''
+                    })
+            
+            return collections
         except Exception as e:
             print(f"获取集合列表失败: {str(e)}")
             return []
