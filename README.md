@@ -29,7 +29,7 @@
 
 1. 克隆项目并安装依赖：
 ```bash
-pip install -r requires.txt
+pip install -r requirements.txt
 ```
 
 2. 配置环境变量：
