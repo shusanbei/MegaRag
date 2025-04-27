@@ -788,6 +788,9 @@ class MilvusDB:
         kwargs: 其他参数，包括top_k、score_threshold等
         """
         try:
+            # 检查并加载集合
+            self._load_collection(self.collection_name)
+            
             # 将查询文本转换为向量
             query_vector = embedding.embed_query(query)
             
@@ -834,6 +837,9 @@ class MilvusDB:
             - operator: 关键词之间的操作符，可选 'AND' 或 'OR'，默认为'OR'
         """
         try:
+            # 检查并加载集合
+            self._load_collection(self.collection_name)
+            
             # 处理查询关键词
             keywords = [kw.strip() for kw in query.split() if kw.strip()]
             operator = kwargs.get("operator", "OR").upper()
@@ -892,6 +898,9 @@ class MilvusDB:
         list[Document]: 混合搜索结果文档列表
         """
         try:
+            # 检查并加载集合
+            self._load_collection(self.collection_name)
+            
             # 获取参数
             vector_weight = kwargs.get("vector_weight", 0.5)
             text_weight = kwargs.get("text_weight", 0.5)
@@ -1005,7 +1014,7 @@ class MilvusDB:
             if rerank_model:
                 try:
                     print(f"------开始进行rerank，加载rerank模型: {rerank_model}-------")
-                    from rag.models.reranks.rerank import XinferenceRerank
+                    from rag.models.reranks.XinferenceRerank import XinferenceRerank
                     reranker = XinferenceRerank(rerank_model)
                     
                     # 准备文档列表和查询

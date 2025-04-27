@@ -26,8 +26,8 @@ env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 environ.Env.read_env(env_file)
 
 # 从环境变量获取Flask配置
-flask_host = env('FLASK_HOST', default='0.0.0.0')
-flask_port = env.int('FLASK_PORT', default=19500)
+flask_host = env('FLASK_HOST')
+flask_port = env.int('FLASK_PORT')
 
 @app.route('/api/split', methods=['POST'])
 def split_document():
@@ -309,6 +309,45 @@ def create_byjson(vectordb):
             'vectordb': vectordb,
             'total_splits': len(documents),
             'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/<vectordb>/save_byjson', methods=['POST'])
+def save_byjson(vectordb):
+    """
+    直接通过json进行创建并存储
+    单个文档处理
+    """
+    try:
+        json_data = request.get_json()
+        if not json_data or 'splits' not in json_data:
+            return jsonify({'error': '无效的JSON格式，缺少splits字段'}), 400
+
+        if 'collection_name' not in json_data:
+            return jsonify({'error': '无效的JSON格式，缺少collection_name字段'}), 400
+
+        collection_name = json_data['collection_name']
+
+        documents = [
+            Document(
+                page_content=split['content'],
+                metadata=split['metadata']
+            ) for split in json_data['splits']
+        ]
+
+        if vectordb.lower() == 'milvus':
+            db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
+            db.save_to_milvus(documents, collection_name, OllamaEmbeddings(base_url=env('OLLAMA_HOST'), model='bge-m3'))
+
+        return jsonify({
+            'message': 'success',
+            'created_by': request.headers.get('uploader', 'api_user'),
+            'collection_name': collection_name,
+            'vectordb': vectordb,
+            'total_splits': len(documents),
+            'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         })
 
     except Exception as e:
@@ -895,7 +934,7 @@ def search_by_vector(vectordb):
 
     请求参数(JSON格式):
     - collection_name: 要搜索的集合名称                **(必填)
-    - query_text: 查询文本                          **(必填)
+    - query: 查询文本                               **(必填)
     - embedding_model: embedding模型名称              **(默认使用环境变量中的OLLAMA_EMBEDDING_MODEL)
     - top_k: 返回结果数量                            **(默认4)
     - score_threshold: 分数阈值                      **(默认0.0)
@@ -912,9 +951,9 @@ def search_by_vector(vectordb):
             
         # 验证必填参数
         collection_name = data.get('collection_name')
-        query_text = data.get('query_text')
-        if not collection_name or not query_text:
-            return jsonify({'error': '必须提供collection_name和query_text参数'}), 400
+        query = data.get('query')
+        if not collection_name or not query:
+            return jsonify({'error': '必须提供collection_name和query参数'}), 400
             
         # 获取embedding模型名称
         embedding_model = request.form.get('embedding_model', 'bge-m3')
@@ -940,7 +979,7 @@ def search_by_vector(vectordb):
                 
                 # 执行向量搜索
                 results = db.search_by_vector(
-                    query=query_text,
+                    query=query,
                     embedding=embedding,
                     top_k=top_k,
                     score_threshold=score_threshold,
@@ -985,7 +1024,7 @@ def search_by_full_text(vectordb):
     - collection_name: 要搜索的集合名称                **(必填)
     - query: 查询文本                                **(必填)
     - top_k: 返回结果数量                            **(默认4)
-    - score_threshold: 分数阈值                      **(默认0.0)
+    - score_threshold: 分数阈值                      **(默认0.3)
     - document_ids_filter: 文档ID过滤列表             **(可选)
     
     返回:
@@ -1005,7 +1044,7 @@ def search_by_full_text(vectordb):
             
         # 获取可选参数
         top_k = data.get('top_k', 4)
-        score_threshold = data.get('score_threshold', 0.0)
+        score_threshold = data.get('score_threshold', 0.3)
         document_ids_filter = data.get('document_ids_filter')
         
         # 根据vectordb参数选择向量数据库

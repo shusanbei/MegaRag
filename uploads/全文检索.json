@@ -1,0 +1,21 @@
+{
+    "results": [
+        {
+            "content": "1. **Dify是什么？**\n   - Dify是一个开源的大语言模型（LLM）应用开发平台，它结合了后端即服务（Backend as Service, BaaS）和LLMOps的理念，旨在帮助开发者快速搭建和部署生成式AI应用程序。\n2. **Dify的主要特点有哪些？**\n   - Dify的主要特点包括简化开发流程、支持多种模型、提供LLMOps支持以及拥有活跃的社区和资源。",
+            "id": 1,
+            "metadata": {
+                "document_name": "Dify_wen_dang",
+                "last_update_date": null,
+                "segment_id": 0,
+                "source": "local_upload",
+                "text_score": 2.097050428390503,
+                "upload_date": "2025-04-24 21:49:48",
+                "uploader": "api_user"
+            },
+            "rerank_score": null,
+            "text_score": 2.097050428390503,
+            "vector_score": null
+        }
+    ],
+    "total": 1
+}

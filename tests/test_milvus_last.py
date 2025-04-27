@@ -111,7 +111,7 @@ class TestMilvusHunhe(unittest.TestCase):
     #     try:
     #         print("-------------------开始全文搜索测试-------------------")
     #         # 准备测试数据
-    #         query_text = "Dify是什么？"
+    #         query = "Dify是什么？"
             
     #         # 确保集合已加载
     #         collection_name = self.milvus_db._process_collection_name(self.filename)
@@ -119,7 +119,7 @@ class TestMilvusHunhe(unittest.TestCase):
             
     #         try:
     #             results = self.milvus_db.search_by_full_text(
-    #                 query=query_text,
+    #                 query=query,
     #                 top_k=4,
     #                 score_threshold=0.3  # 调整阈值到合理范围
     #             )
