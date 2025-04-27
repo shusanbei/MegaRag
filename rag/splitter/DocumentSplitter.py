@@ -1,5 +1,5 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TokenTextSplitter
-from langchain_ollama import OllamaEmbeddings
+from rag.models.embeddings.ollama_embedding import OllamaEmbedding
 from langchain_core.documents import Document
 from sklearn.metrics.pairwise import cosine_similarity
 from concurrent.futures import ThreadPoolExecutor, as_completed

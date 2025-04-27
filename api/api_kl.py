@@ -12,7 +12,8 @@ from rag.splitter.DocumentSplitter import DocumentSplitter
 from rag.datasource.vdb.milvus.milvus import MilvusDB
 import json
 from flask import Flask, request, jsonify
-from langchain_ollama import OllamaEmbeddings
+# 使用自定义的Ollama嵌入模型
+from rag.models.embeddings.ollama_embedding import OllamaEmbedding
 from langchain_core.documents import Document
 from datetime import datetime
 import environ
@@ -28,6 +29,9 @@ environ.Env.read_env(env_file)
 # 从环境变量获取Flask配置
 flask_host = env('FLASK_HOST')
 flask_port = env.int('FLASK_PORT')
+
+def save_to_minio():
+    pass
 
 @app.route('/api/split', methods=['POST'])
 def split_document():
@@ -92,7 +96,7 @@ def split_document():
             embedding_model = request.form.get('embedding_model', 'nomic-embed-text')
             
             # 初始化embedding模型
-            embedding = OllamaEmbeddings(
+            embedding = OllamaEmbedding(
                 base_url=env('OLLAMA_HOST'),
                 model=embedding_model
             )
@@ -170,7 +174,7 @@ def create_byfile(vectordb):
         # 初始化分割器和embedding模型
         splitter = DocumentSplitter()
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        embedding = OllamaEmbeddings(
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
@@ -295,7 +299,7 @@ def create_byjson(vectordb):
         # 根据数据库类型选择存储方式
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
-            db.save_to_milvus(documents, collection_name, OllamaEmbeddings(base_url=env('OLLAMA_HOST'), model='bge-m3'))
+            db.save_to_milvus(documents, collection_name, OllamaEmbedding(base_url=env('OLLAMA_HOST'), model='bge-m3'))
         # elif vectordb.lower() == 'pgvector':
         #     ...
         else:
@@ -339,7 +343,7 @@ def save_byjson(vectordb):
 
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
-            db.save_to_milvus(documents, collection_name, OllamaEmbeddings(base_url=env('OLLAMA_HOST'), model='bge-m3'))
+            db.save_to_milvus(documents, collection_name, OllamaEmbedding(base_url=env('OLLAMA_HOST'), model='bge-m3'))
 
         return jsonify({
             'message': 'success',
@@ -471,7 +475,7 @@ def update_collection_byfile(vectordb):
         # 初始化分割器和embedding模型
         splitter = DocumentSplitter()
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        embedding = OllamaEmbeddings(
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
@@ -586,7 +590,7 @@ def update_collection_byjson(vectordb):
         ]
         
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        embedding = OllamaEmbeddings(
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
@@ -692,7 +696,7 @@ def add_segments(vectordb):
         
         # 初始化embedding模型
         embedding_model = data.get('embedding_model', 'bge-m3')
-        embedding = OllamaEmbeddings(
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
@@ -874,7 +878,7 @@ def update_segment(vectordb):
         
         # 初始化embedding模型
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        embedding = OllamaEmbeddings(
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
@@ -956,8 +960,9 @@ def search_by_vector(vectordb):
             return jsonify({'error': '必须提供collection_name和query参数'}), 400
             
         # 获取embedding模型名称
-        embedding_model = request.form.get('embedding_model', 'bge-m3')
-        embedding = OllamaEmbeddings(
+        embedding_model = data.get('embedding_model')
+        print(f"embedding_model!!!{embedding_model}")
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
@@ -1137,7 +1142,7 @@ def search_by_hybrid(vectordb):
         rerank_top_k = data.get('rerank_top_k', 4)
         
         # 初始化embedding模型
-        embedding = OllamaEmbeddings(
+        embedding = OllamaEmbedding(
             base_url=env('OLLAMA_HOST'),
             model=embedding_model
         )
