@@ -34,6 +34,83 @@ flask_port = env.int('FLASK_PORT')
 def save_to_minio():
     pass
 
+@app.route('/api/splitV1', methods=['POST'])
+def split_documentV1():
+    try:
+        res = request.get_json()
+
+        if not res:
+            return jsonify({'error': '无效的 JSON 数据'}), 500
+
+        # 读取文件
+        required_keys = ['file_path', 'split_method']
+        if not all(key in res for key in required_keys):
+            return jsonify({'error': f'缺少必要参数: {", ".join(required_keys)}'}), 500
+
+        file_path = res.get('file_path')
+        split_method = res.get('split_method', 'recursion')
+        chunk_size = res.get('chunk_size', 200)
+        chunk_overlap = res.get('chunk_overlap', 20)
+
+        loader = DocumentLoader()
+        documents = loader.load_documents(file_path)
+
+        splitter = DocumentSplitter()
+
+        if split_method == 'token':
+            splits = splitter.split_by_token(
+                documents=documents,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap
+            )
+        elif split_method == 'recursion':
+            # 获取分隔符列表
+            separators = res.get('separators')
+            splits = splitter.split_by_recursion(
+                documents=documents,
+                separators=separators,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap
+            )
+        elif split_method == 'semantic':
+            # 获取语义分割相关参数
+            similarity_threshold = float(request.form.get('similarity_threshold', 0.7))
+            embedding_model = request.form.get('embedding_model', 'nomic-embed-text')
+
+            # 初始化embedding模型
+            embedding = XinferenceEmbedding(
+                base_url=env('XINFERENCE_HOST'),
+                model=embedding_model
+            )
+
+            splits = splitter.split_by_semantic(
+                documents=documents,
+                embedding=embedding,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                similarity_threshold=similarity_threshold
+            )
+        else:
+            print("不支持的分割方法")
+            return jsonify({'error': f'不支持的分割方法: {split_method}'}), 500
+
+        result = []
+        for i, split in enumerate(splits):
+            result.append({
+                'id': i + 1,
+                'content': split.page_content,
+                'metadata': split.metadata
+            })
+
+        return jsonify({
+            'total': len(result),
+            'splits': result
+        })
+
+    except Exception as e:
+        print("最外层抛出异常")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/split', methods=['POST'])
 def split_document():
     """文档分割
