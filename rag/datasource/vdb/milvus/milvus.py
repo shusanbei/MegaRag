@@ -1035,7 +1035,7 @@ class MilvusDB:
                     print(f"------rerank完成-------")
 
                 except Exception as e:
-                    print(f"Rerank过程出错: {e}")
+                    print(f"rerank过程出错: {e}")
                     # 如果rerank失败，继续使用原始排序结果
                     pass
 

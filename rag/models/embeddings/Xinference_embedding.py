@@ -1,30 +1,31 @@
-import os
-import ollama
-from typing import List, Union, Optional
+from typing import List, Dict, Optional, Any
+import os, json
+from xinference.client import Client
 from .embedding_base import EmbeddingBase
 
-class OllamaEmbedding(EmbeddingBase):
+class XinferenceEmbedding(EmbeddingBase):
     """
-    基于Ollama SDK的嵌入模型实现
-    使用Ollama的原生Python SDK进行文本嵌入
+    基于Xinference的嵌入模型实现
+    使用Xinference的Client进行文本嵌入
     """
     
     def __init__(self, base_url: str, model: str):
         """
-        初始化Ollama嵌入模型
+        初始化Xinference嵌入模型
         
         Args:
-            base_url: Ollama服务的基础URL
+            base_url: Xinference服务的基础URL
             model: 使用的嵌入模型名称
         """
         super().__init__()
         self.base_url = base_url
         self.model = model
-        # 创建自定义客户端
-        self.client = ollama.Client(host=base_url)
+        # 创建客户端
+        self.client = Client(base_url)
+        # 获取模型实例
+        self.model_instance = self.client.get_model(self.model)
         # 缓存向量维度
         self._embedding_dimension = None
-        print("OllamaEmbedding 加载完成")
     
     def embed_query(self, text: str) -> List[float]:
         """
@@ -36,11 +37,8 @@ class OllamaEmbedding(EmbeddingBase):
         Returns:
             文本的向量表示
         """
-        response = self.client.embed(model=self.model, input=text)
-
-        # print("response: ", response)
-
-        return response['embeddings'][0]
+        response = self.model_instance.create_embedding(text)
+        return response['data'][0]['embedding']  # 修改这里的返回值获取方式
     
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """
@@ -52,7 +50,6 @@ class OllamaEmbedding(EmbeddingBase):
         Returns:
             文档文本的向量表示列表
         """
-        # Ollama SDK目前不支持批量嵌入，所以需要逐个处理
         embeddings = []
         for text in texts:
             embedding = self.embed_query(text)
@@ -71,3 +68,4 @@ class OllamaEmbedding(EmbeddingBase):
             sample_embedding = self.embed_query("测试文本")
             self._embedding_dimension = len(sample_embedding)
         return self._embedding_dimension
+    
