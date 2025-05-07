@@ -1032,10 +1032,20 @@ def search_by_vector(vectordb):
             return jsonify({'error': '请求体必须为JSON格式'}), 400
             
         # 验证必填参数
-        collection_name = data.get('collection_name')
+        collection_names = data.get('collection_name')
         query = data.get('query')
-        if not collection_name or not query:
-            return jsonify({'error': '必须提供collection_name和query参数'}), 400
+        if not collection_names or not query:
+            return jsonify({'error': '必须提供collection_names和query参数'}), 400
+            
+        # 处理集合名称：支持字符串、数组、逗号分隔的字符串
+        if isinstance(collection_names, str):
+            # 如果是逗号分隔的字符串，先分割
+            if ',' in collection_names:
+                collection_names = [name.strip() for name in collection_names.split(',')]
+            else:
+                collection_names = [collection_names]
+        elif not isinstance(collection_names, list):
+            return jsonify({'error': 'collection_names必须是字符串或数组'}), 400
             
         # 获取embedding模型名称
         embedding_model = data.get('embedding_model')
@@ -1050,28 +1060,37 @@ def search_by_vector(vectordb):
         score_threshold = data.get('score_threshold', 0.0)
         document_ids_filter = data.get('document_ids_filter')
         
-        # 根据vectordb参数选择向量数据库
+        # 兼容单集合和多集合
+        if isinstance(collection_names, str):
+            collection_names = [collection_names]
+        all_results = []
         if vectordb.lower() == 'milvus':
             db = MilvusDB()
             try:
-                # 设置集合名称
-                db.collection_name = collection_name
-                
-                # 确保集合已加载
-                db._load_collection(collection_name)
-                
-                # 执行向量搜索
-                results = db.search_by_vector(
-                    query=query,
-                    embedding=embedding,
-                    top_k=top_k,
-                    score_threshold=score_threshold,
-                    document_ids_filter=document_ids_filter
-                )
-                
-                # 格式化返回结果
+                for collection_name in collection_names:
+                    db.collection_name = collection_name
+                    db._load_collection(collection_name)
+                    results = db.search_by_vector(
+                        query=query,
+                        embedding=embedding,
+                        top_k=top_k,
+                        score_threshold=score_threshold,
+                        document_ids_filter=document_ids_filter
+                    )
+                    all_results.extend(results)
+                    db._release_collection(collection_name)
+                # 去重：使用字典保存唯一内容，保留最高分数的结果
+                unique_results = {}
+                for doc in all_results:
+                    content = doc.page_content
+                    score = doc.metadata.get('vector_score', 0)
+                    if content not in unique_results or score > unique_results[content].metadata.get('vector_score', 0):
+                        unique_results[content] = doc
+                # 转换为列表并按vector_score降序排序
+                all_results = list(unique_results.values())
+                all_results.sort(key=lambda doc: doc.metadata.get('vector_score', 0), reverse=True)
                 formatted_results = []
-                for i, doc in enumerate(results):
+                for i, doc in enumerate(all_results):
                     result = {
                         'id': i + 1,
                         'content': doc.page_content,
@@ -1081,7 +1100,6 @@ def search_by_vector(vectordb):
                         'rerank_score': doc.metadata.get('rerank_score')
                     }
                     formatted_results.append(result)
-                
                 return jsonify({
                     'total': len(formatted_results),
                     'results': formatted_results
@@ -1120,37 +1138,56 @@ def search_by_full_text(vectordb):
             return jsonify({'error': '请求体必须为JSON格式'}), 400
             
         # 验证必填参数
-        collection_name = data.get('collection_name')
+        collection_names = data.get('collection_name')
         query = data.get('query')
-        if not collection_name or not query:
-            return jsonify({'error': '必须提供collection_name和query参数'}), 400
+        if not collection_names or not query:
+            return jsonify({'error': '必须提供collection_names和query参数'}), 400
+            
+        # 处理集合名称：支持字符串、数组、逗号分隔的字符串
+        if isinstance(collection_names, str):
+            # 如果是逗号分隔的字符串，先分割
+            if ',' in collection_names:
+                collection_names = [name.strip() for name in collection_names.split(',')]
+            else:
+                collection_names = [collection_names]
+        elif not isinstance(collection_names, list):
+            return jsonify({'error': 'collection_names必须是字符串或数组'}), 400
             
         # 获取可选参数
         top_k = data.get('top_k', 4)
         score_threshold = data.get('score_threshold', 0.3)
         document_ids_filter = data.get('document_ids_filter')
         
-        # 根据vectordb参数选择向量数据库
+        # 兼容单集合和多集合
+        if isinstance(collection_names, str):
+            collection_names = [collection_names]
+        all_results = []
         if vectordb.lower() == 'milvus':
             db = MilvusDB()
             try:
-                # 设置集合名称
-                db.collection_name = collection_name
-                
-                # 确保集合已加载
-                db._load_collection(collection_name)
-                
-                # 执行全文搜索
-                results = db.search_by_full_text(
-                    query=query,
-                    top_k=top_k,
-                    score_threshold=score_threshold,
-                    document_ids_filter=document_ids_filter
-                )
-                
-                # 格式化返回结果
+                for collection_name in collection_names:
+                    db.collection_name = collection_name
+                    db._load_collection(collection_name)
+                    results = db.search_by_full_text(
+                        query=query,
+                        top_k=top_k,
+                        score_threshold=score_threshold,
+                        document_ids_filter=document_ids_filter
+                    )
+                    all_results.extend(results)
+                    db._release_collection(collection_name)
+                # 去重：使用字典保存唯一内容，保留最高分数的结果
+                unique_results = {}
+                for doc in all_results:
+                    content = doc.page_content
+                    score = doc.metadata.get('text_score', 0)
+                    if content not in unique_results or score > unique_results[content].metadata.get('text_score', 0):
+                        unique_results[content] = doc
+                # 转换为列表并按text_score降序排序
+                all_results = list(unique_results.values())
+                all_results.sort(key=lambda doc: doc.metadata.get('text_score', 0), reverse=True)
                 formatted_results = []
-                for i, doc in enumerate(results):
+                for i, doc in enumerate(all_results):
                     result = {
                         'id': i + 1,
                         'content': doc.page_content,
@@ -1204,10 +1241,20 @@ def search_by_hybrid(vectordb):
             return jsonify({'error': '请求体必须为JSON格式'}), 400
             
         # 验证必填参数
-        collection_name = data.get('collection_name')
+        collection_names = data.get('collection_name')
         query = data.get('query')
-        if not collection_name or not query:
-            return jsonify({'error': '必须提供collection_name和query参数'}), 400
+        if not collection_names or not query:
+            return jsonify({'error': '必须提供collection_names和query参数'}), 400
+            
+        # 处理集合名称：支持字符串、数组、逗号分隔的字符串
+        if isinstance(collection_names, str):
+            # 如果是逗号分隔的字符串，先分割
+            if ',' in collection_names:
+                collection_names = [name.strip() for name in collection_names.split(',')]
+            else:
+                collection_names = [collection_names]
+        elif not isinstance(collection_names, list):
+            return jsonify({'error': 'collection_names必须是字符串或数组'}), 400
             
         # 获取可选参数
         embedding_model = data.get('embedding_model', 'bge-m3')
@@ -1225,32 +1272,41 @@ def search_by_hybrid(vectordb):
             model=embedding_model
         )
         
-        # 根据vectordb参数选择向量数据库
+        # 兼容单集合和多集合
+        if isinstance(collection_names, str):
+            collection_names = [collection_names]
+        all_results = []
         if vectordb.lower() == 'milvus':
             db = MilvusDB()
             try:
-                # 设置集合名称
-                db.collection_name = collection_name
-                
-                # 确保集合已加载
-                db._load_collection(collection_name)
-                
-                # 执行混合搜索
-                results = db.search_by_hybrid(
-                    query=query,
-                    embedding=embedding,
-                    vector_weight=vector_weight,
-                    text_weight=text_weight,
-                    top_k=top_k,
-                    score_threshold=score_threshold,
-                    document_ids_filter=document_ids_filter,
-                    rerank_model=rerank_model,
-                    rerank_top_k=rerank_top_k
-                )
-                
-                # 格式化返回结果
+                for collection_name in collection_names:
+                    db.collection_name = collection_name
+                    db._load_collection(collection_name)
+                    results = db.search_by_hybrid(
+                        query=query,
+                        embedding=embedding,
+                        vector_weight=vector_weight,
+                        text_weight=text_weight,
+                        top_k=top_k,
+                        score_threshold=score_threshold,
+                        document_ids_filter=document_ids_filter,
+                        rerank_model=rerank_model,
+                        rerank_top_k=rerank_top_k
+                    )
+                    all_results.extend(results)
+                    db._release_collection(collection_name)
+                # 去重：使用字典保存唯一内容，保留最高分数的结果
+                unique_results = {}
+                for doc in all_results:
+                    content = doc.page_content
+                    score = doc.metadata.get('rerank_score', 0)
+                    if content not in unique_results or score > unique_results[content].metadata.get('rerank_score', 0):
+                        unique_results[content] = doc
+                # 转换为列表并按rerank_score降序排序
+                all_results = list(unique_results.values())
+                all_results.sort(key=lambda doc: doc.metadata.get('rerank_score', 0), reverse=True)
                 formatted_results = []
-                for i, doc in enumerate(results):
+                for i, doc in enumerate(all_results):
                     result = {
                         'id': i + 1,
                         'content': doc.page_content,
