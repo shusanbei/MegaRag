@@ -1010,38 +1010,19 @@ class MilvusDB:
                 }
                 formatted_results.append(formatted_result)
             
-            # 如果提供了rerank模型，进行重排序
-            if rerank_model:
-                try:
-                    print(f"------开始进行rerank，加载rerank模型: {rerank_model}-------")
-                    from rag.models.reranks.XinferenceRerank import XinferenceRerank
-                    reranker = XinferenceRerank(rerank_model)
-                    
-                    # 准备文档列表和查询
-                    docs = [result["entity"]["text"] for result in formatted_results]
-                    
-                    # 执行rerank
-                    rerank_results = reranker.rerank(docs, query)
-                    
-                    # 将rerank分数添加到原始结果中
-                    for i, rerank_result in enumerate(rerank_results):
-                        formatted_results[rerank_result["index"]]["rerank_score"] = float(rerank_result["relevance_score"])
-                    
-                    # 根据rerank分数重新排序
-                    formatted_results.sort(key=lambda x: x["rerank_score"], reverse=True)
-                    
-                    # 保留前rerank_top_k个结果
-                    formatted_results = formatted_results[:rerank_top_k]
-                    print(f"------rerank完成-------")
-
-                except Exception as e:
-                    print(f"rerank过程出错: {e}")
-                    # 如果rerank失败，继续使用原始排序结果
-                    pass
-
-            final_results = [formatted_results]
-            
-            return self._process_search_results(final_results, ["text", "metadata"], score_threshold, search_type="hybrid")
+            docs = []
+            for result in formatted_results:
+                entity = result["entity"]
+                metadata = entity.get("metadata", {})
+                metadata["vector_score"] = float(result["vector_distance"])
+                metadata["text_score"] = float(result["text_distance"])
+                metadata["weighted_score"] = float(result["distance"])
+                doc = Document(
+                    page_content=entity.get("text", ""),
+                    metadata=metadata
+                )
+                docs.append(doc)
+            return docs
             
         except Exception as e:
             print(f"混合搜索时出错: {e}")

@@ -53,7 +53,7 @@ def split_documentV1():
         chunk_overlap = res.get('chunk_overlap', 20)
 
         loader = DocumentLoader()
-        documents = loader.load_documents(file_path)
+        documents = loader.load_documents_from_url(file_path)
 
         splitter = DocumentSplitter()
 
@@ -1289,9 +1289,7 @@ def search_by_hybrid(vectordb):
                         text_weight=text_weight,
                         top_k=top_k,
                         score_threshold=score_threshold,
-                        document_ids_filter=document_ids_filter,
-                        rerank_model=rerank_model,
-                        rerank_top_k=rerank_top_k
+                        document_ids_filter=document_ids_filter
                     )
                     all_results.extend(results)
                     db._release_collection(collection_name)
@@ -1299,12 +1297,27 @@ def search_by_hybrid(vectordb):
                 unique_results = {}
                 for doc in all_results:
                     content = doc.page_content
-                    score = doc.metadata.get('rerank_score', 0)
-                    if content not in unique_results or score > unique_results[content].metadata.get('rerank_score', 0):
+                    score = doc.metadata.get('weighted_score', 0)
+                    if content not in unique_results or score > unique_results[content].metadata.get('weighted_score', 0):
                         unique_results[content] = doc
-                # 转换为列表并按rerank_score降序排序
                 all_results = list(unique_results.values())
-                all_results.sort(key=lambda doc: doc.metadata.get('rerank_score', 0), reverse=True)
+                # rerank逻辑统一处理
+                if rerank_model and len(all_results) > 0:
+                    from rag.models.reranks.XinferenceRerank import XinferenceRerank
+                    reranker = XinferenceRerank(rerank_model, base_url=env('XINFERENCE_HOST'))
+                    docs = [doc.page_content for doc in all_results]
+                    rerank_results = reranker.rerank(docs, query)
+                    # 将rerank分数写入metadata
+                    for rerank in rerank_results:
+                        idx = rerank["index"]
+                        all_results[idx].metadata["rerank_score"] = rerank["relevance_score"]
+                    # 按rerank_score排序
+                    all_results.sort(key=lambda doc: doc.metadata.get('rerank_score', 0), reverse=True)
+                    all_results = all_results[:rerank_top_k]
+                else:
+                    # 没有rerank时按weighted_score排序
+                    all_results.sort(key=lambda doc: doc.metadata.get('weighted_score', 0), reverse=True)
+                    all_results = all_results[:top_k]
                 formatted_results = []
                 for i, doc in enumerate(all_results):
                     result = {
