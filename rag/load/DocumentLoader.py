@@ -15,19 +15,19 @@ class DocumentLoader:
         self._download_nltk_resources()
         
         self.supported_types = {
-            "text/plain": TextLoader,
-            "application/pdf": PyMuPDFLoader,
-            "text/csv": CSVLoader,
-            "application/json": JSONLoader,
-            "text/markdown": UnstructuredMarkdownLoader,
+            "text/plain": TextLoader,                        # txt
+            "application/pdf": PyMuPDFLoader,                # pdf
+            "text/csv": CSVLoader,                           # csv
+            "application/json": JSONLoader,                  # json
+            "text/markdown": UnstructuredMarkdownLoader,     # md
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document": UnstructuredLoader,  # docx
-            "application/msword": UnstructuredLoader,  # doc
-            "text/html": UnstructuredLoader,
-            "application/vnd.ms-excel": UnstructuredLoader
+            "application/msword": UnstructuredLoader,        # doc
+            "text/html": UnstructuredLoader,                 # html
+            "application/vnd.ms-excel": UnstructuredLoader   # xlsx
         }
         
     def _download_nltk_resources(self):
-        """下载NLTK处理文档所需的资源"""
+        """下载NLTK处理文档所需的资源，如果资源已存在则跳过下载"""
         try:
             # 创建SSL上下文以处理可能的SSL证书问题
             try:
@@ -37,14 +37,34 @@ class DocumentLoader:
             else:
                 ssl._create_default_https_context = _create_unverified_https_context
             
-            # 下载必要的NLTK资源
-            nltk.download('punkt', quiet=True)
-            nltk.download('averaged_perceptron_tagger', quiet=True)
-            print("NLTK资源下载完成")
+            # 检查并下载必要的NLTK资源
+            from nltk.data import find
+            resource_paths = {
+                'punkt': 'tokenizers/punkt',
+                'averaged_perceptron_tagger': 'taggers/averaged_perceptron_tagger'
+            }
+            
+            for resource, path in resource_paths.items():
+                try:
+                    # 尝试查找资源
+                    find(path)
+                except LookupError:
+                    print(f"NLTK资源 {resource} 未找到，开始下载...")
+                    try:
+                        nltk.download(resource, quiet=True)
+                        # 再次验证资源是否成功下载
+                        find(path)
+                        print(f"NLTK资源 {resource} 下载完成并验证成功")
+                    except Exception as download_error:
+                        print(f"下载NLTK资源 {resource} 失败: {download_error}")
+                        raise
         except Exception as e:
-            print(f"下载NLTK资源时出错: {e}")
-            print("请手动运行以下命令下载NLTK资源:")
-            print("import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger')")
+            print(f"NLTK资源初始化失败: {e}")
+            print("请手动运行以下命令下载所需资源:")
+            print("import nltk")
+            print("nltk.download('punkt')")
+            print("nltk.download('averaged_perceptron_tagger')")
+            raise
 
 
     def get_file_type(self, file_path):
@@ -60,26 +80,52 @@ class DocumentLoader:
         返回：
         loaded_docs: 加载后的文档列表
         """
-        if not os.path.exists(file_path):
-            print(f"文件不存在: {file_path}")
+        try:
+            if not os.path.exists(file_path):
+                print(f"文件不存在: {file_path}")
+                return []
+
+            file_type = self.get_file_type(file_path)
+            if file_type not in self.supported_types:
+                print(f"不支持的文件类型,跳过文件: {file_path}")
+                return []
+
+            loader_class = self.supported_types[file_type]
+            if file_type == "application/json":
+                loader = loader_class(file_path, jq_schema=".", text_content=False)
+            elif file_type == "text/plain":
+                loader = loader_class(file_path, encoding="utf-8")
+            elif file_type in ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+                # 对于Word文档，使用UnstructuredLoader
+                if file_type == "application/msword":
+                    # 对于.doc文件，将文件后缀修改为.docx
+                    docx_file_path = file_path.replace(".doc", ".docx")
+                    os.rename(file_path, docx_file_path)
+                    file_path = docx_file_path
+                loader = UnstructuredLoader(file_path, strategy="fast", encoding=None)
+            else:
+                loader = loader_class(file_path)
+
+            loaded_docs = loader.load()
+            for doc in loaded_docs:
+                doc.page_content = doc.page_content.replace('\x00', '')  # 移除空字符
+            print(f"加载文档: {os.path.basename(file_path)}")
+            
+            try:
+                # 删除上传的文件
+                os.remove(file_path)
+            except Exception as e:
+                print(f"删除文件失败: {str(e)}")
+
+            return loaded_docs
+        except Exception as e:
+            try:
+                # 删除上传的文件
+                os.remove(file_path)
+            except Exception as e:
+                print(f"删除文件失败: {str(e)}")
+            print(f"加载文档时出错: {str(e)}")
             return []
-
-        file_type = self.get_file_type(file_path)
-        # if file_type not in self.supported_types:
-        #     print(f"不支持的文件类型,跳过文件: {file_path}")
-        #     return []
-
-        loader_class = self.supported_types[file_type]
-        if file_type == "application/json":
-            loader = loader_class(file_path, jq_schema=".", text_content=False)
-        else:
-            loader = loader_class(file_path) if file_type != "text/plain" else loader_class(file_path, encoding="utf-8")
-
-        loaded_docs = loader.load()
-        for doc in loaded_docs:
-            doc.page_content = doc.page_content.replace('\x00', '')  # 移除空字符
-        print(f"加载文档: {os.path.basename(file_path)}")
-        return loaded_docs
 
     def load_documents_from_url(self, url):
         """从URL加载文档"""
@@ -124,9 +170,9 @@ class DocumentLoader:
         except Exception as e:
             print(f"无法从URL加载文档: {url}, 错误: {e}")
             return []
-
+        
 if __name__ == "__main__":
-    file_path = "https://docs.qq.com/doc/DZWRpRmJGZVJSa1RY"
+    file_path = "http://192.168.31.197:8001/upload/20250506/3b69b8c42e5b4a91baf7fbc282baf7e7.txt"
     loader = DocumentLoader()
     docs = loader.load_documents_from_url(file_path)
     print(docs)
