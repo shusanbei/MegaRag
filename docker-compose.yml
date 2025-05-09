@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # RAG应用服务
+  rag-app:
+    image: shusanbei/rag-app
+    container_name: rag-app
+    restart: always
+    ports:
+      - "19500:19500"
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - MILVUS_URI=http://127.0.0.1:19530
+      # - PGvector_url=postgresql://pgvector:pgvector@pgvector:5432/pgvector
+      - XINFERENCE_HOST=http://127.0.0.1:9997
+      - OLLAMA_HOST=http://127.0.0.1:11434
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=19500
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rag-network
+
+networks:
+  rag-network:
+    driver: bridge

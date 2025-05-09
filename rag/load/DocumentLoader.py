@@ -5,20 +5,47 @@ import mimetypes
 import requests
 import chardet
 from urllib.parse import urlparse, unquote
+import nltk
+import ssl
 
 class DocumentLoader:
-    #支持文件类型：txt、pdf、csv、json、md、html等
+    #支持文件类型：txt、pdf、csv、json、md、html、docx、doc等
     def __init__(self):
+        # 初始化时下载必要的NLTK资源
+        self._download_nltk_resources()
+        
         self.supported_types = {
             "text/plain": TextLoader,
             "application/pdf": PyMuPDFLoader,
             "text/csv": CSVLoader,
             "application/json": JSONLoader,
             "text/markdown": UnstructuredMarkdownLoader,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": UnstructuredLoader,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": UnstructuredLoader,  # docx
+            "application/msword": UnstructuredLoader,  # doc
             "text/html": UnstructuredLoader,
             "application/vnd.ms-excel": UnstructuredLoader
         }
+        
+    def _download_nltk_resources(self):
+        """下载NLTK处理文档所需的资源"""
+        try:
+            # 创建SSL上下文以处理可能的SSL证书问题
+            try:
+                _create_unverified_https_context = ssl._create_unverified_context
+            except AttributeError:
+                pass
+            else:
+                ssl._create_default_https_context = _create_unverified_https_context
+            
+            # 下载必要的NLTK资源
+            nltk.download('punkt', quiet=True)
+            nltk.download('averaged_perceptron_tagger', quiet=True)
+            print("NLTK资源下载完成")
+        except Exception as e:
+            print(f"下载NLTK资源时出错: {e}")
+            print("请手动运行以下命令下载NLTK资源:")
+            print("import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger')")
+
 
     def get_file_type(self, file_path):
         """获取文件类型"""
@@ -38,9 +65,9 @@ class DocumentLoader:
             return []
 
         file_type = self.get_file_type(file_path)
-        if file_type not in self.supported_types:
-            print(f"不支持的文件类型,跳过文件: {file_path}")
-            return []
+        # if file_type not in self.supported_types:
+        #     print(f"不支持的文件类型,跳过文件: {file_path}")
+        #     return []
 
         loader_class = self.supported_types[file_type]
         if file_type == "application/json":
@@ -68,7 +95,8 @@ class DocumentLoader:
 
             # 获取文件扩展名以推测文件类型
             _, ext = os.path.splitext(file_name)
-            is_text_file = ext.lower() in ['.txt', '.csv', '.json', '.md', '.html', '.pdf']
+            # 纯文本文件使用文本模式打开，其他文件（包括docx、doc、pdf等）使用二进制模式
+            is_text_file = ext.lower() in ['.txt', '.csv', '.json', '.md', '.html']
 
             # 构建完整的保存路径
             save_path = os.path.join('../../uploads', file_name)
@@ -85,11 +113,9 @@ class DocumentLoader:
                 with open(save_path, 'w', encoding=encoding) as f:
                     f.write(response.content.decode(encoding))  # 使用检测到的编码解码文本
             else:
-                # 对于非文本文件，直接以二进制模式写入
+                # 对于非文本文件（包括Word文档、PDF等），直接以二进制模式写入
                 with open(save_path, 'wb') as f:
                     f.write(response.content)
-
-
 
             loaded_docs = self.load_documents(save_path)
             os.unlink(save_path)  # 删除临时文件
@@ -100,7 +126,7 @@ class DocumentLoader:
             return []
 
 if __name__ == "__main__":
-    file_path = "http://192.168.31.197:8001/upload/20250506/3b69b8c42e5b4a91baf7fbc282baf7e7.txt"
+    file_path = "https://docs.qq.com/doc/DZWRpRmJGZVJSa1RY"
     loader = DocumentLoader()
     docs = loader.load_documents_from_url(file_path)
     print(docs)

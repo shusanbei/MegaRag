@@ -1,0 +1,38 @@
+# 版本控制
+.git
+.gitignore
+
+# 测试文件
+tests/
+pytest.ini
+
+# 缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# 虚拟环境
+venv/
+env/
+.env
+
+# 开发工具配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 文档和示例
+docs/
+README.md
+DOCKER*
+docker-compose.yml
+
+# 临时文件和日志
+logs/
+*.log
+
+# 保留上传目录结构但排除内容
+uploads/*
+!uploads/.gitkeep
