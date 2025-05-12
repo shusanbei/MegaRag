@@ -36,7 +36,7 @@ class DocumentSplitter:
                 splits.extend(future.result())
         return splits
 
-    def split_by_recursion(self, documents, separators=["\n\n", "\n", " ", ""], 
+    def split_by_recursion(self, documents, separators=["\n\n", "\n", " "], 
                           chunk_size=400, chunk_overlap=20, max_workers=4):
         """使用RecursiveCharacterTextSplitter(分隔符)并行递归分割文档"""
         def process_document(doc):
@@ -65,7 +65,7 @@ class DocumentSplitter:
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
-                separators=["\n\n", "\n", "。", "！", "？", "；", "：", "，", " ", ""]
+                separators=["\n\n", "\n", "。", "！", "？", "；", "：", "，", " "]
             )
             initial_chunks = text_splitter.split_text(doc.page_content)
             

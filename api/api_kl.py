@@ -465,18 +465,40 @@ def select_all_KB(vectordb):
             
             # 获取所有集合的元数据
             formatted = []
+            error_collections = []
+            
             for collection in collections:
-                metadata = db.get_collection_metadata(collection['name'])
-                collection_metadata = metadata.get('metadata', {})
-                
-                formatted.append({
-                    'name': collection_metadata.get('document_name', collection['name']),
-                    'created_by': collection_metadata.get('uploader', ''),
-                    'source': collection_metadata.get('source', ''),
-                    'created_at': collection_metadata.get('upload_date', ''),
-                    'updated_at': collection_metadata.get('last_update_date', ''),
-                    'total_segments': collection.get('row_count', 0)
-                })
+                collection_name = collection['name']
+                try:
+                    # 先加载集合，确保集合已加载到内存中
+                    try:
+                        db._load_collection(collection_name)
+                    except Exception as load_err:
+                        print(f"加载集合 {collection_name} 失败: {str(load_err)}")
+                        error_collections.append({
+                            'name': collection_name,
+                            'error': f"加载失败: {str(load_err)}"
+                        })
+                        continue
+                        
+                    # 获取集合元数据
+                    metadata = db.get_collection_metadata(collection_name)
+                    collection_metadata = metadata.get('metadata', {})
+                    
+                    formatted.append({
+                        'name': collection_metadata.get('document_name', collection_name),
+                        'created_by': collection_metadata.get('uploader', ''),
+                        'source': collection_metadata.get('source', ''),
+                        'created_at': collection_metadata.get('upload_date', ''),
+                        'updated_at': collection_metadata.get('last_update_date', ''),
+                        'total_segments': collection.get('row_count', 0)
+                    })
+                except Exception as e:
+                    print(f"处理集合 {collection_name} 时出错: {str(e)}")
+                    error_collections.append({
+                        'name': collection_name,
+                        'error': str(e)
+                    })
             
             # 对结果进行分页
             total = len(formatted)
@@ -484,14 +506,20 @@ def select_all_KB(vectordb):
             end_idx = min(start_idx + limit, total)
             paginated_data = formatted[start_idx:end_idx]
             
-            return jsonify({
+            response_data = {
                 'data': paginated_data,
                 'has_more': end_idx < total,
                 'limit': limit,
                 'total': total,
                 'page': page,
                 'total_pages': (total + limit - 1) // limit
-            })
+            }
+            
+            # 如果有错误的集合，添加到响应中
+            if error_collections:
+                response_data['error_collections'] = error_collections
+                
+            return jsonify(response_data)
             
         elif vectordb.lower() == 'pgvector':
             # 实现PGVector的查询逻辑
@@ -610,6 +638,82 @@ def update_collection_byfile(vectordb):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/<vectordb>/update_byjson_nofile', methods=['POST'])
+def update_collection_byjson_nofile(vectordb):
+    """直接通过JSON数据更新已有知识库
+    <vectordb>  **(必填)
+    - milvus: 更新Milvus向量数据库(默认)
+
+    请求参数(JSON格式):
+    - splits: 分割后的文档数组                        **(必填)
+    - collection_name: 要更新的集合名称                **(必填)
+    - uploader: 上传者名称                            **(默认api_user)
+    - embedding_model: embedding模型名称              **(默认bge-m3)
+
+    返回:
+    - JSON格式的更新结果
+    """
+    try:
+        # 获取并验证JSON数据
+        json_data = request.get_json()
+        if not json_data:
+            return jsonify({'error': '无效的JSON数据'}), 400
+            
+        if 'splits' not in json_data:
+            return jsonify({'error': '无效的JSON格式，缺少splits字段'}), 400
+
+        # 检查集合名称参数
+        collection_name = json_data.get('collection_name')
+        if not collection_name:
+            return jsonify({'error': '必须指定要更新的集合名称'}), 400
+            
+        # 获取并规范化第一个split的source路径
+        try:
+            source_path = os.path.normpath(json_data['splits'][0]['metadata']['source'])
+            
+            # 校验所有split项的source是否一致
+            for split in json_data['splits']:
+                current_source = os.path.normpath(split['metadata'].get('source', ''))
+                if not current_source or os.path.basename(current_source) != os.path.basename(source_path):
+                    return jsonify({'error': '所有split项的metadata.source必须指向同一文件'}), 400
+        except (KeyError, IndexError, AttributeError) as e:
+            return jsonify({'error': f'文件路径解析失败: {str(e)}，请检查metadata.source字段'}), 400
+
+        # 转换JSON数据为Document对象
+        documents = [
+            Document(
+                page_content=split['content'],
+                metadata=split['metadata']
+            ) for split in json_data['splits']
+        ]
+        
+        # 初始化embedding模型
+        embedding_model = json_data.get('embedding_model', 'bge-m3')
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
+
+        # 根据数据库类型选择更新方式
+        if vectordb.lower() == 'milvus':
+            db = MilvusDB(uploader=json_data.get('uploader', 'api_user'))
+            db.update_documents(documents, collection_name, embedding)
+        else:
+            return jsonify({'error': f'不支持的向量数据库类型: {vectordb}'}), 400
+
+        return jsonify({
+            'message': '文档更新完成',
+            'updated_by': json_data.get('uploader', 'api_user'),
+            'filename': os.path.basename(source_path),
+            'collection_name': collection_name,
+            'vectordb': vectordb,
+            'total_splits': len(documents),
+            'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/<vectordb>/update_byjson', methods=['POST'])
 def update_collection_byjson(vectordb):
@@ -1263,7 +1367,7 @@ def search_by_hybrid(vectordb):
         top_k = data.get('top_k', 4)
         score_threshold = data.get('score_threshold', 0.0)
         document_ids_filter = data.get('document_ids_filter')
-        rerank_model = data.get('rerank_model')
+        rerank_model = data.get('rerank_model', 'bge-reranker-v2-m3')
         rerank_top_k = data.get('rerank_top_k', 4)
         
         # 初始化embedding模型
