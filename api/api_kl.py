@@ -75,7 +75,7 @@ def split_documentV1():
         elif split_method == 'semantic':
             # 获取语义分割相关参数
             similarity_threshold = float(request.form.get('similarity_threshold', 0.7))
-            embedding_model = request.form.get('embedding_model', 'nomic-embed-text')
+            embedding_model = request.form.get('embedding_model', 'bge-m3')
 
             # 初始化embedding模型
             embedding = XinferenceEmbedding(

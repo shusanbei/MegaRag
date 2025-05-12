@@ -66,7 +66,6 @@ class DocumentLoader:
             print("nltk.download('averaged_perceptron_tagger')")
             raise
 
-
     def get_file_type(self, file_path):
         """获取文件类型"""
         mime_type, _ = mimetypes.guess_type(file_path)
@@ -109,8 +108,7 @@ class DocumentLoader:
             loaded_docs = loader.load()
             for doc in loaded_docs:
                 doc.page_content = doc.page_content.replace('\x00', '')  # 移除空字符
-            print(f"加载文档: {os.path.basename(file_path)}")
-            
+                
             try:
                 # 删除上传的文件
                 os.remove(file_path)
@@ -164,7 +162,7 @@ class DocumentLoader:
                     f.write(response.content)
 
             loaded_docs = self.load_documents(save_path)
-            os.unlink(save_path)  # 删除临时文件
+            # os.unlink(save_path)  # 删除临时文件
 
             return loaded_docs
         except Exception as e:
@@ -172,7 +170,7 @@ class DocumentLoader:
             return []
         
 if __name__ == "__main__":
-    file_path = "http://192.168.31.197:8001/upload/20250506/3b69b8c42e5b4a91baf7fbc282baf7e7.txt"
+    file_path = "http://192.168.31.198:8001/upload/20250510/7c29833276784b8da0236ea41644b40d.txt"
     loader = DocumentLoader()
     docs = loader.load_documents_from_url(file_path)
     print(docs)
