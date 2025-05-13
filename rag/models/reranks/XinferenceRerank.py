@@ -24,7 +24,7 @@ class XinferenceRerank:
                 model_name=model_name,
                 model_type="rerank"
             )
-            print(f"成功加载rerank模型: {model_name}")
+            # print(f"成功加载rerank模型: {model_name}")
         except Exception as e:
             print(f"加载rerank模型失败: {e}")
             raise
@@ -57,13 +57,13 @@ class XinferenceRerank:
             print(f"rerank过程中出错: {e}")
             raise
 
-    def __del__(self):
-        """
-        释放模型资源
-        """
-        try:
-            if hasattr(self, 'model_uid'):
-                self.client.terminate_model(self.model_uid)
-                print(f"已释放rerank模型: {self.model_name}")
-        except Exception as e:
-            print(f"释放rerank模型失败: {e}")
+    # def __del__(self):
+    #     """
+    #     释放模型资源
+    #     """
+    #     try:
+    #         if hasattr(self, 'model_uid'):
+    #             self.client.terminate_model(self.model_uid)
+    #             print(f"已释放rerank模型: {self.model_name}")
+    #     except Exception as e:
+    #         print(f"释放rerank模型失败: {e}")

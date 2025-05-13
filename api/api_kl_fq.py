@@ -19,8 +19,7 @@ from langchain_core.documents import Document
 from datetime import datetime
 import environ
 import os
-from rag.models.reranks.XinferenceRerank import XinferenceRerank
-                    
+
 app = Flask(__name__)
 
 # 初始化环境变量
@@ -31,54 +30,6 @@ environ.Env.read_env(env_file)
 # 从环境变量获取Flask配置
 flask_host = env('FLASK_HOST')
 flask_port = env.int('FLASK_PORT')
-
-# 全局模型管理器
-class ModelManager:
-    _instance = None
-    _models = {}
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(ModelManager, cls).__new__(cls)
-        return cls._instance
-
-    def get_embedding_model(self, model_name='bge-m3'):
-        """获取或初始化embedding模型"""
-        if model_name not in self._models:
-            try:
-                self._models[model_name] = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=model_name
-                )
-                print(f"加载模型 {model_name} 成功")
-            except Exception as e:
-                print(f"加载模型 {model_name} 失败: {str(e)}")
-                return None
-        return self._models[model_name]
-
-    def get_rerank_model(self, rerank_model_name='bge-reranker-v2-m3'):
-        """获取或初始化rerank模型"""
-        if rerank_model_name not in self._models:
-            try:
-                self._models[rerank_model_name] = XinferenceRerank(
-                    rerank_model_name,
-                    base_url=env('XINFERENCE_HOST')
-                )
-                print(f"加载模型 {rerank_model_name} 成功")
-            except Exception as e:
-                print(f"加载模型 {rerank_model_name} 失败: {str(e)}")
-                return None
-        return self._models[rerank_model_name]
-
-# 初始化全局模型管理器
-model_manager = ModelManager()
-
-# 预加载默认模型
-default_embedding = model_manager.get_embedding_model('bge-m3')
-default_reranker = model_manager.get_rerank_model('bge-reranker-v2-m3')
-
-if default_embedding is None:
-    print("警告: 默认embedding模型加载失败")
 
 def save_to_minio():
     pass
@@ -149,14 +100,11 @@ def split_documentV1():
             similarity_threshold = float(request.form.get('similarity_threshold', 0.7))
             embedding_model = request.form.get('embedding_model', 'bge-m3')
 
-            # 获取或初始化embedding模型
-            embedding = default_embedding
-            if embedding is None:
-                # 如果获取失败，尝试重新初始化
-                embedding = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=embedding_model
-                )
+            # 初始化embedding模型
+            embedding = XinferenceEmbedding(
+                base_url=env('XINFERENCE_HOST'),
+                model=embedding_model
+            )
 
             splits = splitter.split_by_semantic(
                 documents=documents,
@@ -263,16 +211,13 @@ def split_document():
             # 获取语义分割相关参数
             similarity_threshold = float(request.form.get('similarity_threshold', 0.7))
             embedding_model = request.form.get('embedding_model', 'bge-m3')
-
-            # 获取或初始化embedding模型
-            embedding = default_embedding
-            if embedding is None:
-                # 如果获取失败，尝试重新初始化
-                embedding = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=embedding_model
-                )
-
+            
+            # 初始化embedding模型
+            embedding = XinferenceEmbedding(
+                base_url=env('XINFERENCE_HOST'),
+                model=embedding_model
+            )
+            
             splits = splitter.split_by_semantic(
                 documents=documents,
                 embedding=embedding,
@@ -346,14 +291,10 @@ def create_byfile(vectordb):
         # 初始化分割器和embedding模型
         splitter = DocumentSplitter()
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
         
         # 根据不同的分割方法进行处理
         if split_method == 'token':
@@ -489,15 +430,7 @@ def create_byjson(vectordb):
         # 根据数据库类型选择存储方式
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
-            # 获取或初始化embedding模型
-            embedding = default_embedding
-            if embedding is None:
-                # 如果获取失败，尝试重新初始化
-                embedding = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=embedding_model
-                )
-            db.save_to_milvus(documents, collection_name, embedding)
+            db.save_to_milvus(documents, collection_name, XinferenceEmbedding(base_url=env('XINFERENCE_HOST'), model='bge-m3'))
         # elif vectordb.lower() == 'pgvector':
         #     ...
         else:
@@ -541,14 +474,7 @@ def save_byjson(vectordb):
 
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
-            embedding = default_embedding
-            if embedding is None:
-                # 如果获取失败，尝试重新初始化
-                embedding = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=embedding_model
-                )
-            db.save_to_milvus(documents, collection_name, embedding)
+            db.save_to_milvus(documents, collection_name, XinferenceEmbedding(base_url=env('XINFERENCE_HOST'), model='bge-m3'))
 
         return jsonify({
             'message': 'success',
@@ -708,14 +634,10 @@ def update_collection_byfile(vectordb):
         # 初始化分割器和embedding模型
         splitter = DocumentSplitter()
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
         
         # 根据不同的分割方法进行处理
         if split_method == 'token':
@@ -835,14 +757,10 @@ def update_collection_byjson_nofile(vectordb):
         
         # 初始化embedding模型
         embedding_model = json_data.get('embedding_model', 'bge-m3')
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
 
         # 根据数据库类型选择更新方式
         if vectordb.lower() == 'milvus':
@@ -921,14 +839,10 @@ def update_collection_byjson(vectordb):
         ]
         
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
 
         # 根据数据库类型选择更新方式
         if vectordb.lower() == 'milvus':
@@ -1031,14 +945,10 @@ def add_segments(vectordb):
         
         # 初始化embedding模型
         embedding_model = data.get('embedding_model', 'bge-m3')
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
         
         # 根据数据库类型选择存储方式
         if vectordb.lower() == 'milvus':
@@ -1217,14 +1127,10 @@ def update_segment(vectordb):
         
         # 初始化embedding模型
         embedding_model = request.form.get('embedding_model', 'bge-m3')
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
         
         # 根据数据库类型选择更新方式
         if vectordb.lower() == 'milvus':
@@ -1315,14 +1221,10 @@ def search_by_vector(vectordb):
         # 获取embedding模型名称
         embedding_model = data.get('embedding_model')
         print(f"embedding_model!!!{embedding_model}")
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        if embedding is None:
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
             
         # 获取可选参数
         top_k = data.get('top_k', 4)
@@ -1536,16 +1438,10 @@ def search_by_hybrid(vectordb):
         rerank_top_k = data.get('rerank_top_k', 4)
         
         # 初始化embedding模型
-        # 获取或初始化embedding模型
-        embedding = default_embedding
-        # print(f"embedding!!!{embedding}")
-        if embedding is None:
-            # print(f"embedding is None!!!")
-            # 如果获取失败，尝试重新初始化
-            embedding = XinferenceEmbedding(
-                base_url=env('XINFERENCE_HOST'),
-                model=embedding_model
-            )
+        embedding = XinferenceEmbedding(
+            base_url=env('XINFERENCE_HOST'),
+            model=embedding_model
+        )
         
         # 兼容单集合和多集合
         if isinstance(collection_names, str):
@@ -1578,16 +1474,8 @@ def search_by_hybrid(vectordb):
                 all_results = list(unique_results.values())
                 # rerank逻辑统一处理
                 if rerank_model and len(all_results) > 0:
-                    # 获取或初始化embedding模型
-                    reranker = default_reranker
-                    # print(f"reranker!!!{reranker}")
-                    if reranker is None:
-                        # print("reranker is None!!!")
-                        # 如果获取失败，尝试重新初始化
-                        reranker = XinferenceRerank(
-                            rerank_model,
-                            base_url=env('XINFERENCE_HOST')
-                        )
+                    from rag.models.reranks.XinferenceRerank import XinferenceRerank
+                    reranker = XinferenceRerank(rerank_model, base_url=env('XINFERENCE_HOST'))
                     docs = [doc.page_content for doc in all_results]
                     rerank_results = reranker.rerank(docs, query)
                     # 将rerank分数写入metadata

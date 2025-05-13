@@ -12,8 +12,8 @@
 # 进入项目根目录
 cd d:\1Rag
 
-# 构建 Docker 镜像并标记为 shusanbei/rag-app
-docker build -t shusanbei/rag-app .
+# 构建 Docker 镜像并标记为 shusanbei/rag-app:yjz
+docker build -t shusanbei/rag-app:yjz .
 ```
 
 ### 1.2 登录 Docker Hub
