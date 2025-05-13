@@ -66,9 +66,32 @@ def split_documentV1():
         elif split_method == 'recursion':
             # 获取分隔符列表
             separators = res.get('separators')
+            # 处理分隔符字符串，将字符串格式（如'//,\n'）转换为列表格式（如['//','\n']）
+            processed_separators = []
+            if isinstance(separators, str):
+                # 如果是单个字符串，按逗号分割
+                if ',' in separators:
+                    # 分割后处理转义字符
+                    for part in separators.split(','):
+                        processed_separators.append(part.encode().decode('unicode_escape'))
+                else:
+                    processed_separators.append(separators.encode().decode('unicode_escape'))
+            elif isinstance(separators, list):
+                # 如果已经是列表，处理列表中的每个元素
+                for sep in separators:
+                    if isinstance(sep, str) and ',' in sep:
+                        # 分割后处理转义字符
+                        for part in sep.split(','):
+                            processed_separators.append(part.encode().decode('unicode_escape'))
+                    else:
+                        if isinstance(sep, str):
+                            processed_separators.append(sep.encode().decode('unicode_escape'))
+                        else:
+                            processed_separators.append(sep)
+            
             splits = splitter.split_by_recursion(
                 documents=documents,
-                separators=separators,
+                separators=processed_separators,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
             )
@@ -162,9 +185,25 @@ def split_document():
         elif split_method == 'recursion':
             # 获取分隔符列表
             separators = request.form.getlist('separators')
+            
+            # 处理分隔符字符串，将字符串格式（如'//,\n'）转换为列表格式（如['//','\n']）
+            processed_separators = []
+            for sep in separators:
+                # 检查是否是逗号分隔的字符串
+                if ',' in sep:
+                    # 按逗号分割并处理转义字符
+                    for part in sep.split(','):
+                        processed_separators.append(part.encode().decode('unicode_escape'))
+                else:
+                    processed_separators.append(sep.encode().decode('unicode_escape'))
+            
+            # 如果没有提供分隔符，使用默认值
+            if not processed_separators:
+                processed_separators = ["\n\n", "\n", " ", ""]
+                
             splits = splitter.split_by_recursion(
                 documents=documents,
-                separators=separators,
+                separators=processed_separators,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
             )
@@ -267,11 +306,25 @@ def create_byfile(vectordb):
         elif split_method == 'recursion':
             # 获取分隔符列表
             separators = request.form.getlist('separators')
-            if not separators:
-                separators = ["\n\n", "\n", " ", ""]
+            
+            # 处理分隔符字符串，将字符串格式（如'//,\n'）转换为列表格式（如['//','\n']）
+            processed_separators = []
+            for sep in separators:
+                # 检查是否是逗号分隔的字符串
+                if ',' in sep:
+                    # 按逗号分割并处理转义字符
+                    for part in sep.split(','):
+                        processed_separators.append(part.encode().decode('unicode_escape'))
+                else:
+                    processed_separators.append(sep.encode().decode('unicode_escape'))
+            
+            # 如果没有提供分隔符，使用默认值
+            if not processed_separators:
+                processed_separators = ["\n\n", "\n", " ", ""]
+                
             splits = splitter.split_by_recursion(
                 documents=documents,
-                separators=separators,
+                separators=processed_separators,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
             )
@@ -596,11 +649,25 @@ def update_collection_byfile(vectordb):
         elif split_method == 'recursion':
             # 获取分隔符列表
             separators = request.form.getlist('separators')
-            if not separators:
-                separators = ["\n\n", "\n", " ", ""]
+            
+            # 处理分隔符字符串，将字符串格式（如'//,\n'）转换为列表格式（如['//','\n']）
+            processed_separators = []
+            for sep in separators:
+                # 检查是否是逗号分隔的字符串
+                if ',' in sep:
+                    # 按逗号分割并处理转义字符
+                    for part in sep.split(','):
+                        processed_separators.append(part.encode().decode('unicode_escape'))
+                else:
+                    processed_separators.append(sep.encode().decode('unicode_escape'))
+            
+            # 如果没有提供分隔符，使用默认值
+            if not processed_separators:
+                processed_separators = ["\n\n", "\n", " ", ""]
+                
             splits = splitter.split_by_recursion(
                 documents=documents,
-                separators=separators,
+                separators=processed_separators,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap
             )
@@ -1332,7 +1399,7 @@ def search_by_hybrid(vectordb):
     - top_k: 返回结果数量                            **(默认4)
     - score_threshold: 分数阈值                      **(默认0.0)
     - document_ids_filter: 文档ID过滤列表             **(可选)
-    - rerank_model: 重排序模型名称                    **(可选)
+    - rerank_model: 重排序模型名称                    **(默认bge-reranker-v2-m3)
     - rerank_top_k: 重排序返回结果数量                **(默认4)
     
     返回:
