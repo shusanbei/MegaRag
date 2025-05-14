@@ -1596,10 +1596,14 @@ def search_by_hybrid(vectordb):
                         all_results[idx].metadata["rerank_score"] = rerank["relevance_score"]
                     # 按rerank_score排序
                     all_results.sort(key=lambda doc: doc.metadata.get('rerank_score', 0), reverse=True)
+                    # 使用rerank_score进行过滤
+                    all_results = [doc for doc in all_results if doc.metadata.get('rerank_score', 0) >= score_threshold]
                     all_results = all_results[:rerank_top_k]
                 else:
                     # 没有rerank时按weighted_score排序
                     all_results.sort(key=lambda doc: doc.metadata.get('weighted_score', 0), reverse=True)
+                    # 使用weighted_score进行过滤
+                    all_results = [doc for doc in all_results if doc.metadata.get('weighted_score', 0) >= score_threshold]
                     all_results = all_results[:top_k]
                 formatted_results = []
                 for i, doc in enumerate(all_results):
