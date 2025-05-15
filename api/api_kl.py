@@ -78,9 +78,6 @@ default_reranker = model_manager.get_rerank_model('minicpm-reranker')
 if default_embedding is None:
     print("警告: 默认embedding模型加载失败")
 
-def save_to_minio():
-    pass
-
 @app.route('/api/splitV1', methods=['POST'])
 def split_documentV1():
     try:
@@ -100,7 +97,10 @@ def split_documentV1():
         chunk_overlap = res.get('chunk_overlap', 20)
 
         loader = DocumentLoader()
-        documents = loader.load_documents_from_url(file_path)
+        documents = loader.load_documents_from_minio(
+            bucket_name = env.str('MINIO_BUCKET', default='cool'),
+            object_name = file_path
+        )
 
         splitter = DocumentSplitter()
 

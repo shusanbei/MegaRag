@@ -189,21 +189,13 @@ class DocumentLoader:
         try:
             # 初始化MinIO客户端
             from rag.datasource.vdb.minio.Minio import MinIOStorage
-            
-            # 初始化MinIO客户端
-            minio = MinIOStorage(
-                endpoint = env.str('MINIO_ADDRESS'),
-                access_key = env.str('MINIO_ACCESS_KEY'),
-                secret_key = env.str('MINIO_SECRET_KEY'),
-                secure = env.bool('MINIO_SECURE')
-            )
+            minio = MinIOStorage()
             
             # 获取文件内容
-            content = minio.get_file_content(
-                bucket_name = bucket_name,
-                object_name = object_name
-            )
-            print(content)
+            content = minio.get_file_content(bucket_name, object_name)
+            if content is None:
+                print(f"无法从MinIO获取文件: {object_name}")
+                return []
                 
             # 解析文件名获取文件类型
             _, ext = os.path.splitext(object_name)
@@ -213,11 +205,7 @@ class DocumentLoader:
             save_path = os.path.join('../../uploads', object_name)
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             
-            # 检查内容有效性
-            if content is None:
-                print(f"从MinIO获取的文件内容为空: {object_name}")
-                return []
-                
+            # 根据文件类型保存内容
             if is_text_file and isinstance(content, str):
                 with open(save_path, 'w', encoding='utf-8') as f:
                     f.write(content)
@@ -244,8 +232,5 @@ class DocumentLoader:
 
 if __name__ == "__main__":
     loader = DocumentLoader()
-    docs = loader.load_documents_from_minio(
-        bucket_name = env.str('MINIO_BUCKET', default='cool'),
-        object_name = "spring.txt"
-    )
+    docs = loader.load_documents_from_minio("spring.txt")
     print(docs)

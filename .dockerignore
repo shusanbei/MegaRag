@@ -28,6 +28,7 @@ docs/
 README.md
 DOCKER*
 docker-compose.yml
+*.md
 
 # 临时文件和日志
 logs/
