@@ -489,12 +489,6 @@ def create_byjson(vectordb):
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
             # 获取或初始化embedding模型
             embedding = default_embedding
-            if embedding is None:
-                # 如果获取失败，尝试重新初始化
-                embedding = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=embedding_model
-                )
             db.save_to_milvus(documents, collection_name, embedding)
         # elif vectordb.lower() == 'pgvector':
         #     ...
@@ -540,12 +534,6 @@ def save_byjson(vectordb):
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
             embedding = default_embedding
-            if embedding is None:
-                # 如果获取失败，尝试重新初始化
-                embedding = XinferenceEmbedding(
-                    base_url=env('XINFERENCE_HOST'),
-                    model=embedding_model
-                )
             db.save_to_milvus(documents, collection_name, embedding)
 
         return jsonify({
@@ -1535,9 +1523,7 @@ def search_by_hybrid(vectordb):
         # 初始化embedding模型
         # 获取或初始化embedding模型
         embedding = default_embedding
-        # print(f"embedding!!!{embedding}")
         if embedding is None:
-            # print(f"embedding is None!!!")
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
                 base_url=env('XINFERENCE_HOST'),
@@ -1547,7 +1533,6 @@ def search_by_hybrid(vectordb):
         # 兼容单集合和多集合
         if isinstance(collection_names, str):
             collection_names = [collection_names]
-            print(f"collection_names!!!{collection_names}")
         all_results = []
         if vectordb.lower() == 'milvus':
             db = MilvusDB()
@@ -1578,13 +1563,11 @@ def search_by_hybrid(vectordb):
                 if rerank_model and len(all_results) > 0:
                     # 获取或初始化embedding模型
                     reranker = default_reranker
-                    # print(f"reranker!!!{reranker}")
                     if reranker is None:
-                        # print("reranker is None!!!")
                         # 如果获取失败，尝试重新初始化
                         reranker = XinferenceRerank(
                             base_url=env('XINFERENCE_HOST'),
-                            model=rerank_model_name
+                            model=rerank_model
                         )
                     docs = [doc.page_content for doc in all_results]
                     rerank_results = reranker.rerank(docs, query)
