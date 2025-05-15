@@ -22,22 +22,51 @@ class XinferenceEmbedding(EmbeddingBase):
         self.model = model
         # 创建客户端
         self.client = Client(self.base_url)
-        # 获取模型实例
-        if self.client.get_model(self.model) is None:
+       # 检查模型是否已加载
+        try:
+            # 先检查模型是否在可用模型列表中
+            available_models = self.client.list_models()
+            if isinstance(available_models, dict):
+                # 从字典值中提取所有模型的model_name
+                model_names = [v.get('model_name') for v in available_models.values() if isinstance(v, dict)]
+                if model not in model_names:
+                    raise RuntimeError(f"模型 {model} 未在Xinference服务器上部署")
+            elif isinstance(available_models, list):
+                if not any(m.get('model_name') == model for m in available_models if isinstance(m, dict)):
+                    raise RuntimeError(f"模型 {model} 未在Xinference服务器上部署")
+            else:
+                raise RuntimeError(f"无法识别的模型列表格式")
+                
+            self.model_instance = self.client.get_model(self.model)
+            if self.model_instance is None:
+                print(f"模型 {self.model} 已部署但未加载，尝试启动模型")
+                self._launch_model()
+            else:
+                print(f"成功加载已部署的embedding模型: {self.model}")
+                
+        except Exception as e:
+            print(f"模型加载检查失败: {e}")
             try:
-                print(f"正在下载embedding模型: {model}")
-                self.model_uid = self.client.launch_model(
-                    model=model,
-                    model_type="embedding"
-                )
-                print(f"成功下载并且加载embedding模型: {model}")
-            except Exception as e:
-                print(f"加载embedding模型失败: {e}")
-            raise
-        # 获取模型实例
+                print(f"尝试部署模型: {self.model}")
+                self._launch_model()
+            except Exception as launch_err:
+                raise RuntimeError(f"无法加载或部署模型 {self.model}: {launch_err}")
+        
+        # 最终验证模型是否可用
+        if self.model_instance is None:
+            raise RuntimeError(f"模型 {self.model} 启动后仍不可用")
+            
+    def _launch_model(self):
+        """
+        启动模型私有方法
+        """
+        print(f"正在部署embedding模型: {self.model}")
+        self.model_uid = self.client.launch_model(
+            model_name=self.model,
+            model_type="embedding",
+        )
         self.model_instance = self.client.get_model(self.model)
-        # 缓存向量维度
-        self._embedding_dimension = None
+        print(f"成功部署embedding模型: {self.model}")
     
     def embed_query(self, text: str) -> List[float]:
         """

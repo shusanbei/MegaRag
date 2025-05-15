@@ -42,7 +42,7 @@ class ModelManager:
             cls._instance = super(ModelManager, cls).__new__(cls)
         return cls._instance
 
-    def get_embedding_model(self, model_name='bge-m3'):
+    def get_embedding_model(self, model_name):
         """获取或初始化embedding模型"""
         if model_name not in self._models:
             try:
@@ -50,13 +50,11 @@ class ModelManager:
                     base_url=env('XINFERENCE_HOST'),
                     model=model_name
                 )
-                print(f"加载模型 {model_name} 成功")
             except Exception as e:
-                print(f"加载模型 {model_name} 失败: {str(e)}")
                 return None
         return self._models[model_name]
 
-    def get_rerank_model(self, rerank_model_name='bge-reranker-v2-m3'):
+    def get_rerank_model(self, rerank_model_name):
         """获取或初始化rerank模型"""
         if rerank_model_name not in self._models:
             try:
@@ -64,9 +62,7 @@ class ModelManager:
                     base_url=env('XINFERENCE_HOST'),
                     model=rerank_model_name
                 )
-                print(f"加载模型 {rerank_model_name} 成功")
             except Exception as e:
-                print(f"加载模型 {rerank_model_name} 失败: {str(e)}")
                 return None
         return self._models[rerank_model_name]
 
