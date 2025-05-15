@@ -72,8 +72,6 @@ model_manager = ModelManager()
 # 预加载默认模型
 default_embedding = model_manager.get_embedding_model('bge-m3')
 default_reranker = model_manager.get_rerank_model('bge-reranker-v2-m3')
-default_reranker = model_manager.get_rerank_model('bge-reranker-base')
-default_reranker = model_manager.get_rerank_model('minicpm-reranker')
 
 if default_embedding is None:
     print("警告: 默认embedding模型加载失败")
@@ -86,6 +84,8 @@ def split_documentV1():
         if not res:
             return jsonify({'error': '无效的 JSON 数据'}), 500
 
+        print("res!!!!!!!!",res)
+        print("--------------------------")
         # 读取文件
         required_keys = ['file_path', 'split_method']
         if not all(key in res for key in required_keys):
@@ -95,6 +95,9 @@ def split_documentV1():
         split_method = res.get('split_method', 'recursion')
         chunk_size = res.get('chunk_size', 200)
         chunk_overlap = res.get('chunk_overlap', 20)
+
+        print("file_path!!!!!!!!",file_path)
+        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
         loader = DocumentLoader()
         documents = loader.load_documents_from_minio(

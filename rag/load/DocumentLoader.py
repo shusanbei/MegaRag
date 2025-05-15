@@ -198,6 +198,9 @@ class DocumentLoader:
                 secure = env.bool('MINIO_SECURE')
             )
             
+            print("bucket_name!!!!!!!!", bucket_name)
+            print("=================================")
+
             # 获取文件内容
             content = minio.get_file_content(
                 bucket_name = bucket_name,
@@ -230,12 +233,6 @@ class DocumentLoader:
             
             # 加载文档
             loaded_docs = self.load_documents(save_path)
-            
-            # 删除临时文件
-            try:
-                os.remove(save_path)
-            except Exception as e:
-                print(f"删除临时文件失败: {str(e)}")
                 
             return loaded_docs
         except Exception as e:
