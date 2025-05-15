@@ -958,7 +958,7 @@ class MilvusDB:
                 params={
                     "bm25_k1": 2.0,                         # 增加关键词权重
                     "bm25_b": 0.5,                          # 降低文档长度的影响
-                    "min_should_match": 5,                 # 最小匹配关键词数量
+                    "min_should_match": 5,                  # 最小匹配关键词数量
                     "enable_term_weight": True              # 启用词项权重
                 }
                 # filter=filter_str

@@ -170,7 +170,7 @@ class DocumentLoader:
             return []
         
 if __name__ == "__main__":
-    file_path = "http://192.168.31.198:8001/upload/20250510/7c29833276784b8da0236ea41644b40d.txt"
+    file_path = "http://192.168.31.94:9000/cool/spring.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20250515%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250515T030844Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=09c3ee1fb9a88fecc2e18ca6e89e46301b814d3a277c21935efb73c3ce04ca0b"
     loader = DocumentLoader()
     docs = loader.load_documents_from_url(file_path)
     print(docs)

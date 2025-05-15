@@ -61,8 +61,8 @@ class ModelManager:
         if rerank_model_name not in self._models:
             try:
                 self._models[rerank_model_name] = XinferenceRerank(
-                    rerank_model_name,
-                    base_url=env('XINFERENCE_HOST')
+                    base_url=env('XINFERENCE_HOST'),
+                    model=rerank_model_name
                 )
                 print(f"加载模型 {rerank_model_name} 成功")
             except Exception as e:
@@ -76,6 +76,8 @@ model_manager = ModelManager()
 # 预加载默认模型
 default_embedding = model_manager.get_embedding_model('bge-m3')
 default_reranker = model_manager.get_rerank_model('bge-reranker-v2-m3')
+default_reranker = model_manager.get_rerank_model('bge-reranker-base')
+default_reranker = model_manager.get_rerank_model('minicpm-reranker')
 
 if default_embedding is None:
     print("警告: 默认embedding模型加载失败")
@@ -1314,7 +1316,6 @@ def search_by_vector(vectordb):
             
         # 获取embedding模型名称
         embedding_model = data.get('embedding_model')
-        print(f"embedding_model!!!{embedding_model}")
         # 获取或初始化embedding模型
         embedding = default_embedding
         if embedding is None:
@@ -1550,6 +1551,7 @@ def search_by_hybrid(vectordb):
         # 兼容单集合和多集合
         if isinstance(collection_names, str):
             collection_names = [collection_names]
+            print(f"collection_names!!!{collection_names}")
         all_results = []
         if vectordb.lower() == 'milvus':
             db = MilvusDB()
@@ -1585,8 +1587,8 @@ def search_by_hybrid(vectordb):
                         # print("reranker is None!!!")
                         # 如果获取失败，尝试重新初始化
                         reranker = XinferenceRerank(
-                            rerank_model,
-                            base_url=env('XINFERENCE_HOST')
+                            base_url=env('XINFERENCE_HOST'),
+                            model=rerank_model_name
                         )
                     docs = [doc.page_content for doc in all_results]
                     rerank_results = reranker.rerank(docs, query)

@@ -21,7 +21,19 @@ class XinferenceEmbedding(EmbeddingBase):
         self.base_url = base_url
         self.model = model
         # 创建客户端
-        self.client = Client(base_url)
+        self.client = Client(self.base_url)
+        # 获取模型实例
+        if self.client.get_model(self.model) is None:
+            try:
+                print(f"正在下载embedding模型: {model}")
+                self.model_uid = self.client.launch_model(
+                    model=model,
+                    model_type="embedding"
+                )
+                print(f"成功下载并且加载embedding模型: {model}")
+            except Exception as e:
+                print(f"加载embedding模型失败: {e}")
+            raise
         # 获取模型实例
         self.model_instance = self.client.get_model(self.model)
         # 缓存向量维度

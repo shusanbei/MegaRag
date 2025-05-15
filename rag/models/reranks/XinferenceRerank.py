@@ -7,27 +7,31 @@ class XinferenceRerank:
     基于Xinference的rerank模型实现
     """
     
-    def __init__(self, model_name: str, base_url: str = None):
+    def __init__(self, base_url: str, model: str):
         """
         初始化Xinference rerank模型
         
         参数:
-            model_name: 模型名称
-            base_url: Xinference服务地址，默认为从环境变量XINFERENCE_HOST读取
+            base_url: Xinference服务地址
+            model: 模型名称
         """
-        self.model_name = model_name
-        self.base_url = base_url if base_url else os.getenv("XINFERENCE_HOST")
+        self.base_url = base_url
+        self.model = model
         self.client = Client(self.base_url)
         
-        try:
-            self.model_uid = self.client.launch_model(
-                model_name=model_name,
-                model_type="rerank"
-            )
-            # print(f"成功加载rerank模型: {model_name}")
-        except Exception as e:
-            print(f"加载rerank模型失败: {e}")
+        if self.client.get_model(self.model) is None:
+            try:
+                print(f"正在下载rerank模型: {model}")
+                self.model_uid = self.client.launch_model(
+                    model=model,
+                    model_type="rerank"
+                )
+                print(f"成功下载并且加载rerank模型: {model}")
+            except Exception as e:
+                print(f"加载rerank模型失败: {e}")
             raise
+        # 获取模型实例
+        self.model_instance = self.client.get_model(self.model)
     
     def rerank(self, documents: List[str], query: str) -> List[Dict[str, Any]]:
         """
@@ -41,7 +45,7 @@ class XinferenceRerank:
             包含文档内容和分数的字典列表
         """
         try:
-            model = self.client.get_model(self.model_uid)
+            model = self.model_instance
             results = model.rerank(documents, query)
             
             formatted_results = []
@@ -64,6 +68,6 @@ class XinferenceRerank:
     #     try:
     #         if hasattr(self, 'model_uid'):
     #             self.client.terminate_model(self.model_uid)
-    #             print(f"已释放rerank模型: {self.model_name}")
+    #             print(f"已释放rerank模型: {self.model}")
     #     except Exception as e:
     #         print(f"释放rerank模型失败: {e}")
