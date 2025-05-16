@@ -3,6 +3,11 @@ from minio.error import S3Error
 import os
 from typing import Union, Optional
 from environ import environ
+from dotenv import load_dotenv
+
+# 加载.env文件中的环境变量
+load_dotenv(os.path.join(os.path.dirname(__file__), '../../.env'))
+env = environ.Env()
 
 class MinIOStorage:
     def __init__(self, endpoint: str = None, access_key: str = None, secret_key: str = None, secure: bool = True):

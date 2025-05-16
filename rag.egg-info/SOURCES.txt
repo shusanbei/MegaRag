@@ -9,6 +9,7 @@ rag/datasource/__init__.py
 rag/datasource/vdb/__init__.py
 rag/datasource/vdb/milvus/__init__.py
 rag/datasource/vdb/milvus/milvus.py
+rag/datasource/vdb/milvus/milvus_back.py
 rag/datasource/vdb/minio/Minio.py
 rag/datasource/vdb/minio/__init__.py
 rag/datasource/vdb/pgvector/__init__.py

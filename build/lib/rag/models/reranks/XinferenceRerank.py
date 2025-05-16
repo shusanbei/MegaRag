@@ -2,6 +2,7 @@ from typing import List, Dict, Optional, Any
 import os, json
 from xinference.client import Client
 
+
 class XinferenceRerank:
     """
     基于Xinference的rerank模型实现
@@ -92,6 +93,18 @@ class XinferenceRerank:
         except Exception as e:
             print(f"rerank过程中出错: {e}")
             raise
+
+    def is_ready(self):
+        """检查模型是否准备就绪"""
+        try:
+            # 尝试进行一次简单的rerank来验证模型
+            test_texts = ["test"]
+            test_query = "test"
+            result = self.rerank(test_texts, test_query)
+            return result is not None and len(result) > 0
+        except Exception as e:
+            print(f"模型状态检查失败: {str(e)}")
+            return False
 
     # def __del__(self):
     #     """

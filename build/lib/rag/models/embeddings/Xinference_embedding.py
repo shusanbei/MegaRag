@@ -3,6 +3,7 @@ import os, json
 from xinference.client import Client
 from .embedding_base import EmbeddingBase
 
+
 class XinferenceEmbedding(EmbeddingBase):
     """
     基于Xinference的嵌入模型实现
@@ -110,3 +111,13 @@ class XinferenceEmbedding(EmbeddingBase):
             self._embedding_dimension = len(sample_embedding)
         return self._embedding_dimension
     
+    def is_ready(self):
+        """检查模型是否准备就绪"""
+        try:
+            # 尝试进行一次简单的embedding来验证模型
+            test_text = "test"
+            result = self.embed_query(test_text)
+            return result is not None and len(result) > 0
+        except Exception as e:
+            print(f"模型状态检查失败: {str(e)}")
+            return False

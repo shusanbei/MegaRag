@@ -2,7 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-
 # 获取项目根目录的绝对路径
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -21,7 +20,8 @@ from datetime import datetime
 import environ
 import os
 from rag.models.reranks.XinferenceRerank import XinferenceRerank
-                    
+
+              
 app = Flask(__name__)
 
 # 初始化环境变量
@@ -33,19 +33,10 @@ environ.Env.read_env(env_file)
 flask_host = env('FLASK_HOST')
 flask_port = env.int('FLASK_PORT')
 
-# # 设置日志配置
-# logging.basicConfig(
-#     level=print,
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     datefmt='%Y-%m-%d %H:%M:%S'  # 添加这一行来设置时间格式
-# )
-
 # 全局模型管理器
 class ModelManager:
     _instance = None
     _models = {}
-    _embedding_models = []
-    _rerank_models = []
 
     def __new__(cls):
         if cls._instance is None:
@@ -53,121 +44,41 @@ class ModelManager:
         return cls._instance
 
     def get_embedding_model(self, model_name):
-        """获取或初始化embedding模型
-        
-        参数:
-            model_name: 模型名称
-            
-        返回:
-            模型实例或None(如果初始化失败)
-        """
-        if not model_name:
-            print("模型名称不能为空")
-            return None
-            
-        try:
-            if model_name not in self._models:
-                print(f"正在加载embedding模型: {model_name}")
-                model = XinferenceEmbedding(
+        """获取或初始化embedding模型"""
+        if model_name not in self._models:
+            try:
+                self._models[model_name] = XinferenceEmbedding(
                     base_url=env('XINFERENCE_HOST'),
                     model=model_name
                 )
-                # 验证模型加载是否成功
-                if model.is_ready():
-                    self._models[model_name] = model
-                    # 如果是新模型，添加到embedding模型列表中
-                    if model not in self._embedding_models:
-                        self._embedding_models.append(model)
-                    print(f"模型 {model_name} 加载成功")
-                else:
-                    print(f"模型 {model_name} 加载失败: 模型初始化后状态检查未通过")
-                    return None
-            return self._models[model_name]
-                
-        except Exception as e:
-            print(f"模型 {model_name} 加载失败: {str(e)}")
-            print(f"详细错误信息: {e.__class__.__name__}: {str(e)}")
-            return None
+            except Exception as e:
+                return None
+        return self._models[model_name]
 
     def get_rerank_model(self, rerank_model_name):
-        """获取或初始化rerank模型
-        
-        参数:
-            rerank_model_name: 模型名称
-            
-        返回:
-            模型实例或None(如果初始化失败)
-        """
-        if not rerank_model_name:
-            print("模型名称不能为空")
-            return None
-            
-        try:
-            if rerank_model_name not in self._models:
-                print(f"正在加载rerank模型: {rerank_model_name}")
-                model = XinferenceRerank(
+        """获取或初始化rerank模型"""
+        if rerank_model_name not in self._models:
+            try:
+                self._models[rerank_model_name] = XinferenceRerank(
                     base_url=env('XINFERENCE_HOST'),
                     model=rerank_model_name
                 )
-                # 验证模型加载是否成功
-                if model.is_ready():
-                    self._models[rerank_model_name] = model
-                    # 如果是新模型，添加到rerank模型列表中
-                    if model not in self._rerank_models:
-                        self._rerank_models.append(model)
-                    print(f"模型 {rerank_model_name} 加载成功")
-                else:
-                    print(f"模型 {rerank_model_name} 加载失败: 模型初始化后状态检查未通过")
-                    return None
-            return self._models[rerank_model_name]
-                
-        except Exception as e:
-            print(f"模型 {rerank_model_name} 加载失败: {str(e)}")
-            print(f"详细错误信息: {e.__class__.__name__}: {str(e)}")
-            return None
-    
-    def get_all_embedding_models(self):
-        """获取所有预加载embedding模型列表"""
-        return self._embedding_models
-    
-    def get_all_rerank_models(self):
-        """获取所有预加载rerank模型列表"""
-        return self._rerank_models
+            except Exception as e:
+                return None
+        return self._models[rerank_model_name]
 
-# 确保Xinference服务已启动和可访问后再预加载模型
-try:
-    # 检查Xinference服务是否可访问
-    import requests
-    xinference_host = env('XINFERENCE_HOST')
-    response = requests.get(f"{xinference_host}/", timeout=5)
-    if response.status_code == 200:
-        print("Xinference服务检查成功,开始预加载模型...")
-        
-        # 初始化全局模型管理器
-        model_manager = ModelManager()
+# 初始化全局模型管理器
+model_manager = ModelManager()
 
-        # 预加载默认模型
-        default_models = {
-            'embedding': ['bge-m3'],
-            'rerank': ['bge-reranker-v2-m3', 'bge-reranker-base']
-        }
+# 预加载默认模型
+default_embedding = model_manager.get_embedding_model('bge-m3')
+default_reranker = model_manager.get_rerank_model('bge-reranker-v2-m3')
 
-        # 预加载embedding模型
-        for model in default_models['embedding']:
-            if model_manager.get_embedding_model(model) is None:
-                print(f"预加载embedding模型 {model} 失败")
-                
-        # 预加载rerank模型        
-        for model in default_models['rerank']:
-            if model_manager.get_rerank_model(model) is None:
-                print(f"预加载rerank模型 {model} 失败")
-                
-    else:
-        print(f"Xinference服务检查失败: 状态码 {response.status_code}")
-except requests.exceptions.RequestException as e:
-    print(f"无法连接到Xinference服务: {str(e)}")
-except Exception as e:
-    print(f"预加载模型时发生错误: {str(e)}")
+if default_embedding is None:
+    print("警告: 默认embedding模型加载失败")
+
+if default_reranker is None:
+    print("警告: 默认rerank模型加载失败")
 
 @app.route('/api/splitV1', methods=['POST'])
 def split_documentV1():
@@ -176,7 +87,6 @@ def split_documentV1():
 
         if not res:
             return jsonify({'error': '无效的 JSON 数据'}), 500
-
         # 读取文件
         required_keys = ['file_path', 'split_method']
         if not all(key in res for key in required_keys):
@@ -239,7 +149,7 @@ def split_documentV1():
             embedding_model = request.form.get('embedding_model', 'bge-m3')
 
             # 获取或初始化embedding模型
-            embedding = model_manager.get_embedding_model(embedding_model)
+            embedding = default_embedding
             if embedding is None:
                 # 如果获取失败，尝试重新初始化
                 embedding = XinferenceEmbedding(
@@ -354,7 +264,7 @@ def split_document():
             embedding_model = request.form.get('embedding_model', 'bge-m3')
 
             # 获取或初始化embedding模型
-            embedding = model_manager.get_embedding_model(embedding_model)
+            embedding = default_embedding
             if embedding is None:
                 # 如果获取失败，尝试重新初始化
                 embedding = XinferenceEmbedding(
@@ -436,7 +346,7 @@ def create_byfile(vectordb):
         splitter = DocumentSplitter()
         embedding_model = request.form.get('embedding_model', 'bge-m3')
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -529,7 +439,7 @@ def create_byjson(vectordb):
     - file: 上传的JSON文件(需要是分割后的文档)                      **(必填)
     - uploader: 上传者名称                                       **(默认api_user)
     - collection_name: 自定义集合名称                             **(默认文档的名称(会进行处理))
-    - embedding_model: embedding模型名称(存入数据库时使用)        **(默认bge-m3)
+
     返回:
     - JSON格式的存储结果
     """
@@ -579,8 +489,7 @@ def create_byjson(vectordb):
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
             # 获取或初始化embedding模型
-            embedding_model = request.form.get('embedding_model', 'bge-m3')
-            embedding = model_manager.get_embedding_model(embedding_model)
+            embedding = default_embedding
             db.save_to_milvus(documents, collection_name, embedding)
         # elif vectordb.lower() == 'pgvector':
         #     ...
@@ -616,8 +525,6 @@ def save_byjson(vectordb):
 
         collection_name = json_data['collection_name']
 
-        embedding_model = json_data['embedding_model'] if 'embedding_model' in json_data else 'bge-m3'
-
         documents = [
             Document(
                 page_content=split['content'],
@@ -627,7 +534,7 @@ def save_byjson(vectordb):
 
         if vectordb.lower() == 'milvus':
             db = MilvusDB(uploader=request.headers.get('uploader', 'api_user'))
-            embedding = model_manager.get_embedding_model(embedding_model)
+            embedding = default_embedding
             db.save_to_milvus(documents, collection_name, embedding)
 
         return jsonify({
@@ -789,7 +696,7 @@ def update_collection_byfile(vectordb):
         splitter = DocumentSplitter()
         embedding_model = request.form.get('embedding_model', 'bge-m3')
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -916,7 +823,7 @@ def update_collection_byjson_nofile(vectordb):
         # 初始化embedding模型
         embedding_model = json_data.get('embedding_model', 'bge-m3')
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -1002,7 +909,7 @@ def update_collection_byjson(vectordb):
         
         embedding_model = request.form.get('embedding_model', 'bge-m3')
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -1112,7 +1019,7 @@ def add_segments(vectordb):
         # 初始化embedding模型
         embedding_model = data.get('embedding_model', 'bge-m3')
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -1298,7 +1205,7 @@ def update_segment(vectordb):
         # 初始化embedding模型
         embedding_model = request.form.get('embedding_model', 'bge-m3')
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -1362,7 +1269,7 @@ def search_by_vector(vectordb):
     请求参数(JSON格式):
     - collection_name: 要搜索的集合名称                **(必填)
     - query: 查询文本                               **(必填)
-    - embedding_model: embedding模型名称             **(默认使用存储时的embedding模型)
+    - embedding_model: embedding模型名称              **(默认使用环境变量中的OLLAMA_EMBEDDING_MODEL)
     - top_k: 返回结果数量                            **(默认4)
     - score_threshold: 分数阈值                      **(默认0.0)
     - document_ids_filter: 文档ID过滤列表             **(可选)
@@ -1394,36 +1301,8 @@ def search_by_vector(vectordb):
             
         # 获取embedding模型名称
         embedding_model = data.get('embedding_model')
-        embedding = None
-        
-        if vectordb.lower() == 'milvus':
-            # 如果没有指定embedding模型，先尝试从数据库获取存储时使用的模型
-            if embedding_model is None:
-                # 初始化数据库连接
-                db = MilvusDB()
-                # 获取第一个集合的元数据
-                collection_name = collection_names[0]
-                try:
-                    # 查询集合中的一条记录，获取embedding_model信息
-                    db._load_collection(collection_name)
-                    results = db.client.query(
-                        collection_name=collection_name,
-                        filter="",
-                        output_fields=["metadata"],
-                        limit=1
-                    )
-                    if results and len(results) > 0:
-                        metadata = results[0].get("metadata", {})
-                        if isinstance(metadata, str):
-                            metadata = eval(metadata)
-                        embedding_model = metadata.get('embedding_model', 'bge-m3')
-                    db._release_collection(collection_name)
-                except Exception as e:
-                    print(f"获取集合 {collection_name} 的embedding模型信息失败: {str(e)}")
-                    embedding_model = 'bge-m3'  # 默认使用bge-m3
-        
         # 获取或初始化embedding模型
-        embedding = model_manager.get_embedding_model(embedding_model)
+        embedding = default_embedding
         if embedding is None:
             # 如果获取失败，尝试重新初始化
             embedding = XinferenceEmbedding(
@@ -1642,6 +1521,15 @@ def search_by_hybrid(vectordb):
         rerank_model = data.get('rerank_model', 'bge-reranker-v2-m3')
         rerank_top_k = data.get('rerank_top_k', 4)
         
+        # 初始化embedding模型
+        # 获取或初始化embedding模型
+        embedding = default_embedding
+        if embedding is None:
+            # 如果获取失败，尝试重新初始化
+            embedding = XinferenceEmbedding(
+                base_url=env('XINFERENCE_HOST'),
+                model=embedding_model
+            )
         
         # 兼容单集合和多集合
         if isinstance(collection_names, str):
@@ -1653,41 +1541,9 @@ def search_by_hybrid(vectordb):
                 for collection_name in collection_names:
                     db.collection_name = collection_name
                     db._load_collection(collection_name)
-                    # 初始化embedding模型
-                    # 如果没有指定embedding模型，先尝试从数据库获取存储时使用的模型
-                    if embedding_model is None:
-                        # 获取集合一条数据的元数据
-                        collection_name = collection_names
-                        try:
-                            # 查询集合中的一条记录，获取embedding_model信息
-                            db._load_collection(collection_name)
-                            results = db.client.query(
-                                collection_name=collection_name,
-                                filter="",
-                                output_fields=["metadata"],
-                                limit=1
-                            )
-                            if results and len(results) > 0:
-                                metadata = results[0].get("metadata", {})
-                                if isinstance(metadata, str):
-                                    metadata = eval(metadata)
-                                embedding_model = metadata.get('embedding_model', 'bge-m3')
-                            db._release_collection(collection_name)
-                        except Exception as e:
-                            print(f"获取集合 {collection_name} 的embedding模型信息失败: {str(e)}")
-                            embedding_model = 'bge-m3'  # 默认使用bge-m3
-                    # 获取或初始化embedding模型
-                    embedding_model = model_manager.get_embedding_model(embedding_model)
-                    if embedding_model is None:
-                        # 如果获取失败，尝试重新初始化
-                        embedding_model = XinferenceEmbedding(
-                            base_url=env('XINFERENCE_HOST'),
-                            model=embedding_model
-                        )
-
                     results = db.search_by_hybrid(
                         query=query,
-                        embedding=embedding_model,
+                        embedding=embedding,
                         vector_weight=vector_weight,
                         text_weight=text_weight,
                         top_k=top_k,
@@ -1706,8 +1562,8 @@ def search_by_hybrid(vectordb):
                 all_results = list(unique_results.values())
                 # rerank逻辑统一处理
                 if rerank_model and len(all_results) > 0:
-                    # 获取或初始化rerank模型
-                    reranker = model_manager.get_rerank_model(rerank_model)
+                    # 获取或初始化embedding模型
+                    reranker = default_reranker
                     if reranker is None:
                         # 如果获取失败，尝试重新初始化
                         reranker = XinferenceRerank(
@@ -1758,3 +1614,4 @@ def search_by_hybrid(vectordb):
 
 if __name__ == '__main__':
     app.run(host=flask_host, port=flask_port, debug=True)
+    

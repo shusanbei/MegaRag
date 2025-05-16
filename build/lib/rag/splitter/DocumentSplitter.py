@@ -7,17 +7,12 @@ import numpy as np
 import environ
 import os
 
+
 class DocumentSplitter:
     def __init__(self):
         self.env = environ.Env()
         env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
         environ.Env.read_env(env_file)
-
-    def _print_splits(self, splits):
-        """打印分段结果"""
-        print(f"文本分割完成，共 {len(splits)} 个分段!")
-        for i, split in enumerate(splits):
-            print(f"\n分段 {i+1}: {split.page_content}")
 
     def split_by_token(self, documents, chunk_size=400, chunk_overlap=20, max_workers=4):
         """使用TokenTextSplitter(文本块)并行分割文档"""

@@ -18,13 +18,15 @@ environ.Env.read_env(env_file)
 
 class MilvusDB:
 
-    def __init__(self, uploader="system", uri=env.str('MILVUS_URI')):
+    def __init__(self, uploader="system", uri=env.str('MILVUS_URI'), embedding_model=None):
         # 设置环境变量文件路径
         self.env = env
         self.uploader = uploader
         # 初始化 Milvus 客户端
         self.client = MilvusClient(uri=uri)
         self.collection_name = None
+        # 存储embedding模型名称
+        self.embedding_model = embedding_model
 
     # 辅助方法
     def _process_collection_name(self, filename):
@@ -274,6 +276,10 @@ class MilvusDB:
         collections = self.client.list_collections()
         if collection_name not in collections:
             raise Exception(f"集合 {collection_name} 不存在")
+            
+        # 保存embedding模型名称
+        if hasattr(embedding, 'model'):
+            self.embedding_model = embedding.model
 
         return self.save_to_milvus(splits, collection_name, embedding)
 
@@ -285,6 +291,9 @@ class MilvusDB:
         collection_name: 原始文件名
         embedding:使用的embedding模型
         """
+        # 保存embedding模型名称
+        if hasattr(embedding, 'model'):
+            self.embedding_model = embedding.model
         if not splits:
             print("没有生成任何文本分段，请检查文档内容！")
             return
@@ -338,7 +347,8 @@ class MilvusDB:
                             "upload_date": current_time,
                             "last_update_date": None,
                             "source": "local_upload",
-                            "segment_id": index
+                            "segment_id": index,
+                            "embedding_model": self.embedding_model
                         }
                     }
                     batch_data.append(record)
@@ -779,14 +789,25 @@ class MilvusDB:
             raise
 
     # 搜索方法
-    def search_by_vector(self, query: str, embedding, **kwargs: Any) -> list[Document]:
+    def search_by_vector(self, query: str, embedding=None, **kwargs: Any) -> list[Document]:
         """通过向量相似度搜索文档。
 
         参数:
         query: 查询文本
-        embedding: 使用的embedding模型
+        embedding: 使用的embedding模型，如果为None则尝试使用存储时的模型
         kwargs: 其他参数，包括top_k、score_threshold等
         """
+        # 如果没有提供embedding模型，尝试获取存储时使用的模型
+        if embedding is None and self.embedding_model is not None:
+            from rag.models.embeddings.Xinference_embedding import XinferenceEmbedding
+            try:
+                embedding = XinferenceEmbedding(
+                    base_url=self.env('XINFERENCE_HOST'),
+                    model=self.embedding_model
+                )
+            except Exception as e:
+                print(f"无法加载存储时使用的embedding模型 {self.embedding_model}: {e}")
+                raise Exception(f"请提供embedding模型或确保存储时使用的模型 {self.embedding_model} 可用")
         try:
             # 检查并加载集合
             self._load_collection(self.collection_name)
@@ -879,12 +900,12 @@ class MilvusDB:
             print(f"全文搜索时出错: {e}")
             raise
     
-    def search_by_hybrid(self, query: str, embedding, **kwargs: Any) -> list[Document]:
+    def search_by_hybrid(self, query: str, embedding=None, **kwargs: Any) -> list[Document]:
         """通过混合搜索查找文档
         
         参数:
         query: 查询文本
-        embedding: 使用的embedding模型
+        embedding: 使用的embedding模型，如果为None则尝试使用存储时的模型
         kwargs: 其他参数，包括:
             - vector_weight: 向量搜索权重，默认为0.5
             - text_weight: 文本搜索权重，默认为0.5
@@ -897,6 +918,17 @@ class MilvusDB:
         返回:
         list[Document]: 混合搜索结果文档列表
         """
+        # 如果没有提供embedding模型，尝试获取存储时使用的模型
+        if embedding is None and self.embedding_model is not None:
+            from rag.models.embeddings.Xinference_embedding import XinferenceEmbedding
+            try:
+                embedding = XinferenceEmbedding(
+                    base_url=self.env('XINFERENCE_HOST'),
+                    model=self.embedding_model
+                )
+            except Exception as e:
+                print(f"无法加载存储时使用的embedding模型 {self.embedding_model}: {e}")
+                raise Exception(f"请提供embedding模型或确保存储时使用的模型 {self.embedding_model} 可用")
         try:
             # 检查并加载集合
             self._load_collection(self.collection_name)
