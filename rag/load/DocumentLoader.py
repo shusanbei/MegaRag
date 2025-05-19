@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, JSONLoader, CSVLoader, UnstructuredMarkdownLoader
 from langchain_unstructured import UnstructuredLoader
 import mimetypes
@@ -9,6 +11,9 @@ import nltk
 import ssl
 from dotenv import load_dotenv
 import environ
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
 # 加载.env文件中的环境变量
 load_dotenv(os.path.join(os.path.dirname(__file__), '../../.env'))
@@ -188,7 +193,12 @@ class DocumentLoader:
             bucket_name = env.str('MINIO_BUCKET', default='cool')
         try:
             # 初始化MinIO客户端
-            from rag.datasource.vdb.minio.Minio import MinIOStorage
+            try:
+                # 尝试相对导入
+                from rag.datasource.vdb.minio import MinIOStorage
+            except ImportError:
+                # 尝试绝对导入
+                from datasource.vdb.minio import MinIOStorage
             
             # 初始化MinIO客户端
             minio = MinIOStorage(
@@ -197,9 +207,6 @@ class DocumentLoader:
                 secret_key = env.str('MINIO_SECRET_KEY'),
                 secure = env.bool('MINIO_SECURE')
             )
-            
-            print("bucket_name!!!!!!!!", bucket_name)
-            print("=================================")
 
             # 获取文件内容
             content = minio.get_file_content(
@@ -243,6 +250,6 @@ if __name__ == "__main__":
     loader = DocumentLoader()
     docs = loader.load_documents_from_minio(
         bucket_name = env.str('MINIO_BUCKET', default='cool'),
-        object_name = "spring.txt"
+        object_name = "22/SpringBoot.txt"
     )
     print(docs)

@@ -57,7 +57,7 @@ RUN mkdir -p /app/uploads && chmod 777 /app/uploads
 # 设置环境变量
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app \
+    PYTHONPATH=/app:/app/rag \
     NLTK_DATA=/usr/local/share/nltk_data
 
 # 复制项目文件

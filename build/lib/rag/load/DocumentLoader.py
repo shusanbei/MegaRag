@@ -197,9 +197,6 @@ class DocumentLoader:
                 secret_key = env.str('MINIO_SECRET_KEY'),
                 secure = env.bool('MINIO_SECURE')
             )
-            
-            print("bucket_name!!!!!!!!", bucket_name)
-            print("=================================")
 
             # 获取文件内容
             content = minio.get_file_content(
