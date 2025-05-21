@@ -203,7 +203,6 @@ class DocumentLoader:
                 bucket_name = bucket_name,
                 object_name = object_name
             )
-            print(content)
                 
             # 解析文件名获取文件类型
             _, ext = os.path.splitext(object_name)

@@ -213,7 +213,6 @@ class DocumentLoader:
                 bucket_name = bucket_name,
                 object_name = object_name
             )
-            print(content)
                 
             # 解析文件名获取文件类型
             _, ext = os.path.splitext(object_name)
@@ -250,6 +249,6 @@ if __name__ == "__main__":
     loader = DocumentLoader()
     docs = loader.load_documents_from_minio(
         bucket_name = env.str('MINIO_BUCKET', default='cool'),
-        object_name = "22/SpringBoot.txt"
+        object_name = "22/RAG方向的算法的对比与优化.docx"
     )
     print(docs)

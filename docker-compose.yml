@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # RAG应用服务
   rag-app:
-    image: shusanbei/rag-app:yjz6.0
+    image: shusanbei/rag-app:yjz8.0
     container_name: rag-app
     restart: always
     ports:
