@@ -27,7 +27,7 @@
   - langchain 相关组件 (community, core, text-splitters等,进行分割时会使用)
   - Flask >= 3.0.2
   - PyMilvus >= 2.4.0
-  - Ollama (可选，用于语义分割)
+  - xinference >= 1.4.1 (可选，用于语义分割)
   - 其他依赖见 requirements.txt
 
 ## 快速开始
