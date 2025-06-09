@@ -1,0 +1,16 @@
+{
+    "model_name": "Qwen3-Reranker-0.6B",
+    "model_id": "Qwen3-Reranker-0.6B",
+    "model_revision": null,
+    "model_hub": "huggingface",
+    "language": [
+        "en",
+        "zh",
+        "multilingual"
+    ],
+    "type": "normal",
+    "max_tokens": 32000,
+    "model_uri": "/root/.xinference/cache",
+    "model_type": "rerank",
+    "is_builtin": false
+}

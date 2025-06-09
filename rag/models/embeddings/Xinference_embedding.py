@@ -23,7 +23,7 @@ class XinferenceEmbedding(EmbeddingBase):
         self.model = model
         # 创建客户端
         self.client = Client(self.base_url)
-       # 检查模型是否已加载
+        # 检查模型是否已加载
         try:
             # 先检查模型是否在可用模型列表中
             available_models = self.client.list_models()

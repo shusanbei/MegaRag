@@ -148,8 +148,8 @@ try:
 
         # 预加载默认模型
         default_models = {
-            'embedding': ['bge-m3'],
-            'rerank': ['bge-reranker-v2-m3', 'bge-reranker-base']
+            'embedding': ['bge-m3', 'Qwen3-Embedding-0.6B'],
+            'rerank': ['bge-reranker-v2-m3', 'bge-reranker-base', 'Qwen3-Reranker-0.6B']
         }
 
         # 预加载embedding模型
