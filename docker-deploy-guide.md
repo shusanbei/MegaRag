@@ -29,7 +29,7 @@ docker login
 
 ```bash
 # 推送镜像到 Docker Hub
-docker push shusanbei/rag-app
+docker push shusanbei/rag-app:yjz
 ```
 
 ## 2. 在其他设备上运行

@@ -2,7 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-
 # 获取项目根目录的绝对路径
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -23,6 +22,14 @@ import os
 from rag.models.reranks.XinferenceRerank import XinferenceRerank
                     
 app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    """健康检查端点，用于验证服务是否正常运行"""
+    return jsonify({
+        'status': 'running',
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
 
 # 初始化环境变量
 env = environ.Env()
@@ -168,6 +175,8 @@ except requests.exceptions.RequestException as e:
     print(f"无法连接到Xinference服务: {str(e)}")
 except Exception as e:
     print(f"预加载模型时发生错误: {str(e)}")
+
+
 
 @app.route('/api/splitV1', methods=['POST'])
 def split_documentV1():
