@@ -122,14 +122,14 @@ docker run -d \
 ## API 接口
 
 ### 文档管理
-- `POST /api/v1/documents/upload` - 上传文档
-- `GET /api/v1/documents` - 获取文档列表
-- `DELETE /api/v1/documents/{doc_id}` - 删除文档
+- `POST /api/documents/upload` - 上传文档
+- `GET /api/documents` - 获取文档列表
+- `DELETE /api/documents/{doc_id}` - 删除文档
 
 ### 检索接口
-- `POST /api/v1/search/semantic` - 语义检索
-- `POST /api/v1/search/fulltext` - 全文检索
-- `POST /api/v1/search/hybrid` - 混合检索
+- `POST /api/search/semantic` - 语义检索
+- `POST /api/search/fulltext` - 全文检索
+- `POST /api/search/hybrid` - 混合检索
 
 详细接口文档请参考 `api/` 目录下的具体实现。
 
