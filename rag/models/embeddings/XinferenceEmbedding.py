@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional, Any
 import os, json
 from xinference.client import Client
-from .embedding_base import EmbeddingBase
+from .EmbeddingBase import EmbeddingBase
 
 
 class XinferenceEmbedding(EmbeddingBase):

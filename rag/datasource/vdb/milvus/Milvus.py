@@ -10,6 +10,7 @@ import environ
 import numpy as np
 from langchain_core.documents import Document
 import psutil
+import jieba
 
 # 初始化环境变量
 env = environ.Env()
@@ -18,13 +19,15 @@ environ.Env.read_env(env_file)
 
 class MilvusDB:
 
-    def __init__(self, uploader="system", uri=env.str('MILVUS_URI')):
+    def __init__(self, uploader="system", uri=env.str('MILVUS_URI'), embedding_model=None):
         # 设置环境变量文件路径
         self.env = env
         self.uploader = uploader
         # 初始化 Milvus 客户端
         self.client = MilvusClient(uri=uri)
         self.collection_name = None
+        # 存储embedding模型名称
+        self.embedding_model = embedding_model
 
     # 辅助方法
     def _process_collection_name(self, filename):
@@ -145,7 +148,7 @@ class MilvusDB:
             schema.add_field(field_name="id", datatype=DataType.VARCHAR, max_length=36, is_primary=True)
             schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=dim)
             schema.add_field(field_name="sparse_vector", datatype=DataType.SPARSE_FLOAT_VECTOR)
-            schema.add_field(field_name="text", datatype=DataType.VARCHAR, max_length=65535, enable_analyzer=True)
+            schema.add_field(field_name="text", datatype=DataType.VARCHAR, max_length=65535, enable_analyzer=True,enable_match=True)
             schema.add_field(field_name="metadata", datatype=DataType.JSON)
             
             bm25_function = Function(
@@ -181,8 +184,8 @@ class MilvusDB:
                 metric_type="BM25",
                 params={
                     "inverted_index_algo": "DAAT_MAXSCORE",
-                    "bm25_k1": 1.2,
-                    "bm25_b": 0.75
+                    "bm25_k1": 2.0,
+                    "bm25_b": 0.5
                 }, 
             )
             
@@ -274,6 +277,10 @@ class MilvusDB:
         collections = self.client.list_collections()
         if collection_name not in collections:
             raise Exception(f"集合 {collection_name} 不存在")
+            
+        # 保存embedding模型名称
+        if hasattr(embedding, 'model'):
+            self.embedding_model = embedding.model
 
         return self.save_to_milvus(splits, collection_name, embedding)
 
@@ -285,6 +292,9 @@ class MilvusDB:
         collection_name: 原始文件名
         embedding:使用的embedding模型
         """
+        # 保存embedding模型名称
+        if hasattr(embedding, 'model'):
+            self.embedding_model = embedding.model
         if not splits:
             print("没有生成任何文本分段，请检查文档内容！")
             return
@@ -338,7 +348,8 @@ class MilvusDB:
                             "upload_date": current_time,
                             "last_update_date": None,
                             "source": "local_upload",
-                            "segment_id": index
+                            "segment_id": index,
+                            "embedding_model": self.embedding_model
                         }
                     }
                     batch_data.append(record)
@@ -779,14 +790,25 @@ class MilvusDB:
             raise
 
     # 搜索方法
-    def search_by_vector(self, query: str, embedding, **kwargs: Any) -> list[Document]:
+    def search_by_vector(self, query: str, embedding=None, **kwargs: Any) -> list[Document]:
         """通过向量相似度搜索文档。
 
         参数:
         query: 查询文本
-        embedding: 使用的embedding模型
+        embedding: 使用的embedding模型，如果为None则尝试使用存储时的模型
         kwargs: 其他参数，包括top_k、score_threshold等
         """
+        # 如果没有提供embedding模型，尝试获取存储时使用的模型
+        if embedding is None and self.embedding_model is not None:
+            from rag.models.embeddings.XinferenceEmbedding import XinferenceEmbedding
+            try:
+                embedding = XinferenceEmbedding(
+                    base_url=self.env('XINFERENCE_HOST'),
+                    model=self.embedding_model
+                )
+            except Exception as e:
+                print(f"无法加载存储时使用的embedding模型 {self.embedding_model}: {e}")
+                raise Exception(f"请提供embedding模型或确保存储时使用的模型 {self.embedding_model} 可用")
         try:
             # 检查并加载集合
             self._load_collection(self.collection_name)
@@ -841,50 +863,123 @@ class MilvusDB:
             self._load_collection(self.collection_name)
             
             # 处理查询关键词
-            keywords = [kw.strip() for kw in query.split() if kw.strip()]
+            # 使用jieba进行中文分词
+            keywords = []
+            # 对输入文本进行预处理，移除多余空格
+            query = re.sub(r'\s+', ' ', query.strip())
+            
+            # 检测是否包含中文字符
+            has_chinese = bool(re.search(r'[\u4e00-\u9fff]', query))
+            
+            if has_chinese:
+                # 对中文使用jieba分词
+                keywords = list(jieba.cut_for_search(query))
+            else:
+                # 对英文使用空格分词
+                keywords = [kw.strip() for kw in query.split() if kw.strip()]
+            
+            # 移除空字符串和单字符关键词（提高搜索质量）
+            keywords = [kw for kw in keywords if len(kw) > 1]
+            
             operator = kwargs.get("operator", "OR").upper()
             min_should_match = kwargs.get("min_should_match", 1)
+            top_k = kwargs.get("top_k", 4)
             
-            # 构建查询表达式
-            if operator == "AND":
-                query_expr = " AND ".join(f'text LIKE "%{kw}%"' for kw in keywords)
-            else:  # OR
-                query_expr = " OR ".join(f'text LIKE "%{kw}%"' for kw in keywords)
+            # 存储每个关键词的搜索结果
+            keyword_results = {}
             
-            # 处理文档ID过滤
-            document_ids_filter = kwargs.get("document_ids_filter")
-            if document_ids_filter:
-                document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
-                filter_str = f'({query_expr}) AND metadata["document_id"] in ({document_ids})'
-            else:
-                filter_str = query_expr
+            # 对每个关键词进行单独搜索
+            for keyword in keywords:
+                # 构建查询表达式
+                query_expr = f'text LIKE "%{keyword}%"'
+                
+                # 处理文档ID过滤
+                document_ids_filter = kwargs.get("document_ids_filter")
+                if document_ids_filter:
+                    document_ids = ", ".join(f"'{id}'" for id in document_ids_filter)
+                    filter_str = f'({query_expr}) AND metadata["document_id"] in ({document_ids})'
+                else:
+                    filter_str = query_expr
 
-            results = self.client.search(
-                collection_name=self.collection_name,
-                data=[query],
-                anns_field="sparse_vector",
-                limit=kwargs.get("top_k", 4),
-                output_fields=["text", "metadata"],
-                filter=filter_str,
-                params={
-                    "bm25_k1": 2.0,                         # 增加关键词权重
-                    "bm25_b": 0.5,                          # 降低文档长度的影响
-                    "min_should_match": min_should_match,   # 最小匹配关键词数量
-                    "enable_term_weight": True              # 启用词项权重
-                }
-            )
+                results = self.client.search(
+                    collection_name=self.collection_name,
+                    data=[keyword],
+                    anns_field="sparse_vector",
+                    limit=top_k,
+                    output_fields=["text", "metadata"],
+                    filter=filter_str,
+                    params={
+                        "bm25_k1": 2.0,
+                        "bm25_b": 0.5,
+                        "min_should_match": 1,
+                        "enable_term_weight": True
+                    }
+                )
+                
+                # 处理搜索结果
+                for result in results[0]:
+                    doc_id = result["entity"]["metadata"].get("document_id")
+                    if doc_id not in keyword_results:
+                        keyword_results[doc_id] = {
+                            "entity": result["entity"],
+                            "score": result["distance"],
+                            "keyword_count": 1
+                        }
+                    else:
+                        # 如果文档已存在，更新分数和关键词计数
+                        if operator == "AND":
+                            # AND操作：取最小分数
+                            keyword_results[doc_id]["score"] = min(
+                                keyword_results[doc_id]["score"],
+                                result["distance"]
+                            )
+                        else:
+                            # OR操作：取最大分数
+                            keyword_results[doc_id]["score"] = max(
+                                keyword_results[doc_id]["score"],
+                                result["distance"]
+                            )
+                        keyword_results[doc_id]["keyword_count"] += 1
+            
+            # 过滤结果
+            filtered_results = []
+            for doc_id, result in keyword_results.items():
+                if operator == "AND" and result["keyword_count"] < len(keywords):
+                    continue
+                if result["keyword_count"] >= min_should_match:
+                    filtered_results.append(result)
+            
+            # 按分数排序
+            sorted_results = sorted(
+                filtered_results,
+                key=lambda x: x["score"],
+                reverse=True
+            )[:top_k]
+            
+            # 转换为Document对象
+            docs = []
+            for result in sorted_results:
+                entity = result["entity"]
+                metadata = entity.get("metadata", {})
+                metadata["score"] = float(result["score"])
+                metadata["keyword_count"] = result["keyword_count"]
+                doc = Document(
+                    page_content=entity.get("text", ""),
+                    metadata=metadata
+                )
+                docs.append(doc)
             
             return self._process_search_results(results, ["text", "metadata"], kwargs.get("score_threshold", 0.0), search_type="text")
         except Exception as e:
             print(f"全文搜索时出错: {e}")
             raise
     
-    def search_by_hybrid(self, query: str, embedding, **kwargs: Any) -> list[Document]:
+    def search_by_hybrid(self, query: str, embedding=None, **kwargs: Any) -> list[Document]:
         """通过混合搜索查找文档
         
         参数:
         query: 查询文本
-        embedding: 使用的embedding模型
+        embedding: 使用的embedding模型，如果为None则尝试使用存储时的模型
         kwargs: 其他参数，包括:
             - vector_weight: 向量搜索权重，默认为0.5
             - text_weight: 文本搜索权重，默认为0.5
@@ -897,6 +992,17 @@ class MilvusDB:
         返回:
         list[Document]: 混合搜索结果文档列表
         """
+        # 如果没有提供embedding模型，尝试获取存储时使用的模型
+        if embedding is None and self.embedding_model is not None:
+            from rag.models.embeddings.XinferenceEmbedding import XinferenceEmbedding
+            try:
+                embedding = XinferenceEmbedding(
+                    base_url=self.env('XINFERENCE_HOST'),
+                    model=self.embedding_model
+                )
+            except Exception as e:
+                print(f"无法加载存储时使用的embedding模型 {self.embedding_model}: {e}")
+                raise Exception(f"请提供embedding模型或确保存储时使用的模型 {self.embedding_model} 可用")
         try:
             # 检查并加载集合
             self._load_collection(self.collection_name)
@@ -948,23 +1054,54 @@ class MilvusDB:
                 # filter=filter_str
             )
             
-            # 执行文本搜索
-            text_results = client.search(
-                collection_name=self.collection_name,
-                data=[query],
-                anns_field="sparse_vector",
-                limit=top_k,
-                output_fields=["id", "text", "metadata"],
-                params={
-                    "bm25_k1": 2.0,                         # 增加关键词权重
-                    "bm25_b": 0.5,                          # 降低文档长度的影响
-                    "min_should_match": 5,                  # 最小匹配关键词数量
-                    "enable_term_weight": True              # 启用词项权重
-                }
-                # filter=filter_str
-            )
+            # 对查询文本进行分词
+            # 使用jieba分词处理中文
+            chinese_keywords = jieba.cut(query)
+            # 过滤掉长度为1的关键词
+            chinese_keywords = [kw for kw in chinese_keywords if len(kw) > 1]
+            # 使用空格分割英文
+            english_keywords = [word for word in query.split() if len(word) > 1]
+            # 合并关键词
+            keywords = list(set(chinese_keywords + english_keywords))
             
-            # 合并结果
+            # 存储每个关键词的搜索结果
+            keyword_results = {}
+            
+            # 对每个关键词进行单独搜索
+            for keyword in keywords:
+                text_results = client.search(
+                    collection_name=self.collection_name,
+                    data=[keyword],
+                    anns_field="sparse_vector",
+                    limit=top_k,
+                    output_fields=["id", "text", "metadata"],
+                    params={
+                        "bm25_k1": 2.0,
+                        "bm25_b": 0.5,
+                        "min_should_match": 1,
+                        "enable_term_weight": True
+                    }
+                    # filter=filter_str
+                )
+                
+                # 处理搜索结果
+                for result in text_results[0]:
+                    doc_id = result["entity"]["id"]
+                    if doc_id not in keyword_results:
+                        keyword_results[doc_id] = {
+                            "entity": result["entity"],
+                            "text_distance": result["distance"],
+                            "keyword_count": 1
+                        }
+                    else:
+                        # 更新分数和关键词计数
+                        keyword_results[doc_id]["text_distance"] = max(
+                            keyword_results[doc_id]["text_distance"],
+                            result["distance"]
+                        )
+                        keyword_results[doc_id]["keyword_count"] += 1
+            
+            # 合并向量搜索结果和文本搜索结果
             merged_results = {}
             
             # 处理向量搜索结果
@@ -973,19 +1110,21 @@ class MilvusDB:
                 merged_results[result_id] = {
                     "entity": result["entity"],
                     "vector_distance": result["distance"],
-                    "text_distance": 0.0
+                    "text_distance": 0.0,
+                    "keyword_count": 0
                 }
             
             # 处理文本搜索结果
-            for result in text_results[0]:
-                result_id = result["entity"]["id"]
-                if result_id in merged_results:
-                    merged_results[result_id]["text_distance"] = result["distance"]
+            for doc_id, result in keyword_results.items():
+                if doc_id in merged_results:
+                    merged_results[doc_id]["text_distance"] = result["text_distance"]
+                    merged_results[doc_id]["keyword_count"] = result["keyword_count"]
                 else:
-                    merged_results[result_id] = {
+                    merged_results[doc_id] = {
                         "entity": result["entity"],
                         "vector_distance": 0.0,
-                        "text_distance": result["distance"]
+                        "text_distance": result["text_distance"],
+                        "keyword_count": result["keyword_count"]
                     }
             
             # 计算加权得分并排序
@@ -997,7 +1136,7 @@ class MilvusDB:
             
             sorted_results = sorted(
                 merged_results.values(),
-                key=lambda x: x["weighted_score"],
+                key=lambda x: (x["keyword_count"], x["weighted_score"]),
                 reverse=True
             )[:top_k]
             
@@ -1008,7 +1147,8 @@ class MilvusDB:
                     "entity": result["entity"],
                     "distance": float(result["weighted_score"]),          
                     "vector_distance": float(result["vector_distance"]),  
-                    "text_distance": float(result["text_distance"])       
+                    "text_distance": float(result["text_distance"]),
+                    "keyword_count": result["keyword_count"]
                 }
                 formatted_results.append(formatted_result)
             
@@ -1019,6 +1159,7 @@ class MilvusDB:
                 metadata["vector_score"] = float(result["vector_distance"])
                 metadata["text_score"] = float(result["text_distance"])
                 metadata["weighted_score"] = float(result["distance"])
+                metadata["keyword_count"] = result["keyword_count"]
                 doc = Document(
                     page_content=entity.get("text", ""),
                     metadata=metadata

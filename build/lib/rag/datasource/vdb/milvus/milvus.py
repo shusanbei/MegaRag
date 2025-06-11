@@ -799,7 +799,7 @@ class MilvusDB:
         """
         # 如果没有提供embedding模型，尝试获取存储时使用的模型
         if embedding is None and self.embedding_model is not None:
-            from rag.models.embeddings.Xinference_embedding import XinferenceEmbedding
+            from rag.models.embeddings.XinferenceEmbedding import XinferenceEmbedding
             try:
                 embedding = XinferenceEmbedding(
                     base_url=self.env('XINFERENCE_HOST'),
@@ -920,7 +920,7 @@ class MilvusDB:
         """
         # 如果没有提供embedding模型，尝试获取存储时使用的模型
         if embedding is None and self.embedding_model is not None:
-            from rag.models.embeddings.Xinference_embedding import XinferenceEmbedding
+            from rag.models.embeddings.XinferenceEmbedding import XinferenceEmbedding
             try:
                 embedding = XinferenceEmbedding(
                     base_url=self.env('XINFERENCE_HOST'),

@@ -1,6 +1,8 @@
 # 测试文件
 demo.py
 
+uploads/*
+
 # 环境变量文件
 .env
 .env.*

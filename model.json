@@ -1,16 +1,32 @@
 {
+    "model_name": "Qwen3-Embedding-0.6B",
+    "model_id": "Qwen3-Embedding-0.6B",
+    "model_revision": null,
+    "model_hub": "modelscope",
+    "language": [
+        "en",
+        "zh",
+        "multilingual"
+    ],
+    "dimensions": 1024,
+    "max_tokens": 32000,
+    "model_uri": "/root/.cache/modelscope",
+    "is_builtin": false
+}
+{
     "model_name": "Qwen3-Reranker-0.6B",
     "model_id": "Qwen3-Reranker-0.6B",
     "model_revision": null,
-    "model_hub": "huggingface",
+    "model_hub": "modelscope",
     "language": [
         "en",
         "zh",
         "multilingual"
     ],
     "type": "normal",
-    "max_tokens": 32000,
-    "model_uri": "/root/.xinference/cache",
+    "max_tokens": null,
+    "virtualenv": null,
+    "model_uri": "/root/.cache/modelscope",
     "model_type": "rerank",
     "is_builtin": false
 }

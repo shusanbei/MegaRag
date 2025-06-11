@@ -8,18 +8,18 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from rag.load.DocumentLoader import DocumentLoader
 from rag.splitter.DocumentSplitter import DocumentSplitter
-from rag.datasource.vdb.milvus.milvus import MilvusDB
-import json
-from flask import Flask, request, jsonify
+from rag.datasource.vdb.milvus.Milvus import MilvusDB
 # 使用自定义的Ollama嵌入模型
-from rag.models.embeddings.ollama_embedding import OllamaEmbedding
+from rag.models.embeddings.OllamaEmbedding import OllamaEmbedding
 # 使用自定义的Xinference嵌入模型
-from rag.models.embeddings.Xinference_embedding import XinferenceEmbedding
+from rag.models.embeddings.XinferenceEmbedding import XinferenceEmbedding
+from rag.models.reranks.XinferenceRerank import XinferenceRerank
 from langchain_core.documents import Document
+from flask import Flask, request, jsonify
 from datetime import datetime
 import environ
+import json
 import os
-from rag.models.reranks.XinferenceRerank import XinferenceRerank
                     
 app = Flask(__name__)
 
@@ -27,7 +27,7 @@ app = Flask(__name__)
 def health_check():
     """健康检查端点，用于验证服务是否正常运行"""
     return jsonify({
-        'status': 'running',
+        'status': 'running!',
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
 

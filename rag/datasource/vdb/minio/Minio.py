@@ -2,12 +2,6 @@ from minio import Minio
 from minio.error import S3Error
 import os
 from typing import Union, Optional
-from environ import environ
-from dotenv import load_dotenv
-
-# 加载.env文件中的环境变量
-load_dotenv(os.path.join(os.path.dirname(__file__), '../../.env'))
-env = environ.Env()
 
 class MinIOStorage:
     def __init__(self, endpoint: str = None, access_key: str = None, secret_key: str = None, secure: bool = True):
@@ -129,35 +123,3 @@ class MinIOStorage:
             if 'response' in locals():
                 response.close()
                 response.release_conn()
-
-if __name__ == "__main__":
-    # 从.env文件加载配置
-    env = environ.Env()
-    
-    # 直接使用项目根目录下的.env文件
-    env_file = "D:\\1Rag\\.env"
-    
-    if os.path.exists(env_file):
-        environ.Env.read_env(env_file)
-    else:
-        raise FileNotFoundError("未找到.env配置文件")
-    # 使用传入参数或环境变量配置
-    endpoint = env.str('MINIO_ADDRESS')
-    access_key = env.str('MINIO_ACCESS_KEY')
-    secret_key = env.str('MINIO_SECRET_KEY')
-    secure = env.bool('MINIO_SECURE', False)
-    
-    # 初始化MinIO客户端
-    minio = MinIOStorage(
-        endpoint=endpoint,
-        access_key=access_key,
-        secret_key=secret_key,
-        secure=secure
-    )
-
-    file = minio.get_file_content(
-        bucket_name=env.str('MINIO_BUCKET'),
-        object_name="spring.txt"
-    )
-
-    print(file)

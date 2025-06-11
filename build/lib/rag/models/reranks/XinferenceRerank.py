@@ -79,7 +79,12 @@ class XinferenceRerank:
         """
         try:
             model = self.model_instance
-            results = model.rerank(documents, query)
+            results = model.rerank(
+                query=query,
+                documents=documents,
+                # pad_token="<|endoftext|>",  # 显式指定
+                batch_size=1  # 测试是否能处理 >1
+            )
             
             formatted_results = []
             for result in results['results']:

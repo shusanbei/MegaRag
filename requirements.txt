@@ -8,7 +8,7 @@ psutil==7.0.0
 pypinyin==0.53.0
 python_environ==0.4.54
 nltk==3.9.1
-unstructured[all]==0.10.30
+unstructured[all]
 langchain_core==0.3.59
 langchain_community==0.3.23
 langchain_text_splitters==0.3.8
@@ -20,3 +20,11 @@ ollama==0.4.8
 xinference==1.4.1
 minio==7.2.15
 jieba==0.42.1
+python-magic==0.4.27
+markdown==3.8
+# 解析文档使用，支持[".pdf"][".ppt", ".pptx", ".doc", ".docx"][".png", ".jpg", ".jpeg"]
+magic-pdf[full]
+
+fastapi
+uvicorn
+python-multipart

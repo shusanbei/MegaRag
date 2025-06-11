@@ -1,7 +1,7 @@
 import os
 import ollama
 from typing import List, Union, Optional
-from .embedding_base import EmbeddingBase
+from .EmbeddingBase import EmbeddingBase
 
 class OllamaEmbedding(EmbeddingBase):
     """
